@@ -1,3 +1,5 @@
+<img src="art/Sievphov.png" alt="Sievphov logo" width="96" align="right">
+
 # Sievphov (សៀវភៅ)
 
 Print many PDF files in one go on Windows. Each file has its own printer settings, and **presets** apply a saved set of settings to many selected files with one click.
@@ -24,7 +26,7 @@ Windows may show "Windows protected your PC" the first time, because the program
 | Save a preset from a file | Right-click the file → **Save as preset…** |
 | Check before printing | **Preview** shows every sheet as it will print. **Estimate** shows pages and paper per printer. |
 | Print | **▶ PRINT** (Ctrl+P). **Pause** and **■ Stop** work while printing. At the end you get a report you can save for Excel. |
-| Reuse a list | **Save job…** saves the list with every file's own settings as a `.svpv` file. **More ▾ → Open .svpv files with Sievphov** makes double-clicking a job open it. |
+| Reuse a list | **Save job…** saves the list with every file's own settings as a `.svpv` file. **More ▾ → Open .svpv files with Sievphov** makes double-clicking a job open it and gives job files their own icon. |
 
 When you edit a preset, every file using it **without** a `*` gets the new settings. Files with a `*` keep their own changes.
 
@@ -44,6 +46,8 @@ Booklets: pages are put two per side in folding order (8|1, 2|7, …). Print on 
 Presets and options are kept in `%AppData%\Sievphov` (**More ▾ → Open settings folder**). Saved passwords for locked PDFs are stored there in plain text.
 
 ## For developers
+
+- `art/`: the logo and `.svpv` file icon (original artwork plus cut-out PNGs). The `.ico` files are in `src/Sievphov`.
 
 - `src/Sievphov.Core`: settings, presets, page ranges, booklet/N-up order, estimates, job files, PDF reading (PDFium via PDFtoImage). Runs on any OS.
 - `src/Sievphov`: the WPF app and the print engine (System.Drawing printing, one print job per file).

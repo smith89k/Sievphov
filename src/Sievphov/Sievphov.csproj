@@ -38,6 +38,7 @@
 
   <ItemGroup>
     <Resource Include="Sievphov.ico" />
+    <Resource Include="svpv.ico" />
   </ItemGroup>
 
 </Project>

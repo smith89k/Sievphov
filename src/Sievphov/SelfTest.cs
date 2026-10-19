@@ -29,6 +29,9 @@ public static class SelfTest
                 Log($"FAIL: \"{Printer}\" is not installed.");
                 return 2;
             }
+            SaveIcons(folder);
+            Log("Icons saved.");
+
             var caps = PrinterCatalog.For(Printer);
             Log($"Trays: {string.Join(" | ", caps.Trays)}");
             Log($"Paper sizes: {string.Join(" | ", caps.PaperSizes.Take(12))}");
@@ -91,6 +94,21 @@ public static class SelfTest
             Log("FAIL: " + ex);
             return 3;
         }
+    }
+
+    /// <summary>The icon Windows shows for Sievphov.exe, and the .svpv document icon inside it.</summary>
+    private static void SaveIcons(string folder)
+    {
+        using (var exeIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!))
+        using (var bmp = exeIcon!.ToBitmap())
+            bmp.Save(Path.Combine(folder, "icon-exe.png"), ImageFormat.Png);
+
+        var resource = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/svpv.ico"))
+            ?? throw new InvalidOperationException("svpv.ico resource missing");
+        using var stream = resource.Stream;
+        using var docIcon = new Icon(stream, 256, 256);
+        using var docBmp = docIcon.ToBitmap();
+        docBmp.Save(Path.Combine(folder, "icon-svpv.png"), ImageFormat.Png);
     }
 
     private static JobItem Make(string folder, string name, (float W, float H)[] pages, Action<PrintSettings> setup)
