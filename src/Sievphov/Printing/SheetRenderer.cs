@@ -39,12 +39,12 @@ public sealed class SheetRenderer : IDisposable
         for (int i = 0; i < slots.Length && i < side.Slots.Length; i++)
         {
             var slot = slots[i];
-            if (_s.Layout == LayoutMode.PagesPerSheet && _s.Borders)
-                using (var pen = new Pen(Color.Black, 1f))
-                    g.DrawRectangle(pen, slot.X, slot.Y, slot.Width, slot.Height);
-
             if (side.Slots[i] is not int page || page < 1 || page > _item.PageSizes.Count) continue;
             DrawPage(g, slot, page, LayoutMath.SlotAlignment(_s, i));
+
+            if (_s.Layout == LayoutMode.PagesPerSheet && _s.Borders)
+                using (var pen = new Pen(Color.Black, 1f))
+                    g.DrawRectangle(pen, slot.X + 0.5f, slot.Y + 0.5f, slot.Width - 1, slot.Height - 1);
         }
     }
 

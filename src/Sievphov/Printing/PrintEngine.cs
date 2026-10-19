@@ -170,7 +170,13 @@ public sealed class PrintEngine
             g.TranslateTransform(-ps.HardMarginX, -ps.HardMarginY);
             var sheet = new RectangleF(0, 0, e.PageBounds.Width, e.PageBounds.Height);
             var printable = RectangleF.Inflate(sheet, -ps.HardMarginX, -ps.HardMarginY);
-            renderer.DrawSide(g, printable, sequence[next]);
+            if (!sequence[next].IsBlank)
+            {
+                // One solid picture per side: printers handle see-through watermarks badly.
+                using var composed = Compose(renderer, printable, sequence[next], s.Dpi);
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                g.DrawImage(composed, printable);
+            }
 
             next++;
             Progress?.Invoke($"Printing file {index + 1} of {count}: {item.FileName} — side {next} of {sequence.Count}",
@@ -181,6 +187,24 @@ public sealed class PrintEngine
 
         doc.Print();
         return (pages.Count * Math.Max(1, s.Copies), sheets, cancelled || token.IsCancellationRequested);
+    }
+
+    /// <summary>Draws a whole side into one bitmap at <paramref name="dpi"/> (kept under ~120 megapixels).</summary>
+    private static Bitmap Compose(SheetRenderer renderer, RectangleF area, SheetSide side, int dpi)
+    {
+        double pixels = area.Width / 100.0 * dpi * (area.Height / 100.0 * dpi);
+        if (pixels > 120e6) dpi = (int)(dpi * Math.Sqrt(120e6 / pixels));
+        int w = Math.Max(1, (int)Math.Ceiling(area.Width / 100f * dpi));
+        int h = Math.Max(1, (int)Math.Ceiling(area.Height / 100f * dpi));
+        var bmp = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+        bmp.SetResolution(dpi, dpi);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Color.White);
+        g.PageUnit = GraphicsUnit.Pixel;
+        g.ScaleTransform(dpi / 100f, dpi / 100f);
+        g.TranslateTransform(-area.X, -area.Y);
+        renderer.DrawSide(g, area, side);
+        return bmp;
     }
 
     /// <summary>Sets printer, tray, paper, sides, orientation and color for this file only.</summary>
