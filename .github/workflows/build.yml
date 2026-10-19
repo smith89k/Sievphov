@@ -1,9 +1,7 @@
 name: Build Windows app
 
+# Runs only when started by hand (Actions → Build Windows app → Run workflow).
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -51,7 +49,7 @@ jobs:
 
       # Keeps the latest self-test pictures and printed PDFs on the ci/selftest branch for review.
       - name: Publish self-test output to ci/selftest branch
-        if: always() && github.event_name == 'push'
+        if: always()
         shell: pwsh
         run: |
           Set-Location selftest

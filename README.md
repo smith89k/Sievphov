@@ -7,7 +7,7 @@ Made for printing books (Khmer books, sastra): two-sided, booklets, page numbers
 
 ## Get the program
 
-1. Open the repository on GitHub → **Actions** → the latest green **Build Windows app** run.
+1. Open the repository on GitHub → **Actions** → **Build Windows app**. The build only runs when started by hand: click **Run workflow** (or open the latest green run).
 2. Download **Sievphov-win-x64** and unzip it. You get one file, `Sievphov.exe`.
 3. Copy `Sievphov.exe` anywhere and double-click it. Nothing needs to be installed; it runs on 64-bit Windows 10 and 11.
 
