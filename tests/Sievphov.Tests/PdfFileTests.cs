@@ -8,7 +8,7 @@ public class PdfFileTests
     [Fact]
     public void ReadsPageCountAndSizes()
     {
-        var path = TestPdf.WriteTemp(TestPdf.Create((595, 842), (842, 595), (300, 400)));
+        var path = SimplePdf.WriteTemp(SimplePdf.Create((595, 842), (842, 595), (300, 400)));
         var info = PdfFile.Open(path, Array.Empty<string>());
         Assert.Equal(3, info.PageCount);
         Assert.Equal(842, info.PageSizes[1].Width, 1);
@@ -19,7 +19,7 @@ public class PdfFileTests
     [Fact]
     public void RendersAtRequestedDpiAndRotates()
     {
-        var pdf = TestPdf.Create((144, 288)); // 2 x 4 inches
+        var pdf = SimplePdf.Create((144, 288)); // 2 x 4 inches
         using var bmp = PdfFile.Render(pdf, 1, null, 100, grayscale: false, rotate90: false);
         Assert.Equal(200, bmp.Width);
         Assert.Equal(400, bmp.Height);
@@ -35,7 +35,7 @@ public class PdfFileTests
     [Fact]
     public void BrokenFileGivesClearReason()
     {
-        var path = TestPdf.WriteTemp(System.Text.Encoding.ASCII.GetBytes("this is not a pdf"));
+        var path = SimplePdf.WriteTemp(System.Text.Encoding.ASCII.GetBytes("this is not a pdf"));
         var ex = Assert.ThrowsAny<Exception>(() => PdfFile.Open(path, Array.Empty<string>()));
         Assert.Equal("Not a valid PDF (file is broken)", PdfFile.Describe(ex));
     }

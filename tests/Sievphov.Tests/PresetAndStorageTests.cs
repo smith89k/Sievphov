@@ -117,8 +117,8 @@ public class PresetAndStorageTests
         var dir = TempDir();
         var pdf1 = Path.Combine(dir, "សៀវភៅ ១.pdf");
         var pdf2 = Path.Combine(dir, "Invoice.pdf");
-        File.WriteAllBytes(pdf1, TestPdf.Create((595, 842)));
-        File.WriteAllBytes(pdf2, TestPdf.Create((595, 842)));
+        File.WriteAllBytes(pdf1, SimplePdf.Create((595, 842)));
+        File.WriteAllBytes(pdf2, SimplePdf.Create((595, 842)));
 
         var items = new[]
         {
@@ -145,7 +145,7 @@ public class PresetAndStorageTests
     {
         var dir = TempDir();
         var pdf = Path.Combine(dir, "a.pdf");
-        File.WriteAllBytes(pdf, TestPdf.Create((595, 842)));
+        File.WriteAllBytes(pdf, SimplePdf.Create((595, 842)));
         Storage.SaveJob(Path.Combine(dir, "j.svpv"), new[] { new JobItem { FilePath = pdf } });
 
         var moved = dir + "-moved";

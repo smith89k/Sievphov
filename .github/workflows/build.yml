@@ -1,0 +1,47 @@
+name: Build Windows app
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Tests
+        run: dotnet test tests/Sievphov.Tests -c Release
+
+      - name: Build Sievphov.exe
+        run: dotnet publish src/Sievphov -p:PublishProfile=win-x64 -o dist/Sievphov
+
+      - name: Self-test (prints sample books to Microsoft Print to PDF)
+        shell: pwsh
+        run: |
+          $out = Join-Path $pwd 'selftest'
+          $p = Start-Process -FilePath dist/Sievphov/Sievphov.exe -ArgumentList '--selftest', "`"$out`"" -PassThru
+          if (-not $p.WaitForExit(600000)) { $p.Kill(); throw 'Self-test timed out' }
+          Get-Content (Join-Path $out 'selftest.log')
+          Get-ChildItem $out | Format-Table Name, Length
+          if ($p.ExitCode -ne 0) { throw "Self-test failed with code $($p.ExitCode)" }
+
+      - name: Upload Sievphov.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sievphov-win-x64
+          path: dist/Sievphov/Sievphov.exe
+
+      - name: Upload self-test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selftest-output
+          path: selftest
