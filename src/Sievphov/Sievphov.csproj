@@ -12,6 +12,7 @@
     <AssemblyName>Sievphov</AssemblyName>
     <RootNamespace>Sievphov</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Sievphov.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
@@ -34,5 +35,9 @@
     </ItemGroup>
     <Delete Files="@(_SymbolsInPublish)" />
   </Target>
+
+  <ItemGroup>
+    <Resource Include="Sievphov.ico" />
+  </ItemGroup>
 
 </Project>

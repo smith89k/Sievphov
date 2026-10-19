@@ -83,7 +83,7 @@ public sealed class SheetRenderer : IDisposable
             {
                 var size = UnitsOf(bmp);
                 var at = LayoutMath.PlaceStamp(size, page, pn.Position, LayoutMath.MmToUnits(pn.MarginMm), pdfPage);
-                g.DrawImage(bmp, at);
+                g.DrawImage(bmp, at); // at is a rectangle: explicit size, independent of the bitmap's dpi
             }
         }
 

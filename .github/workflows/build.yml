@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write # only used to publish self-test results to the ci/selftest branch
+
 jobs:
   build:
     runs-on: windows-latest
@@ -45,3 +48,16 @@ jobs:
         with:
           name: selftest-output
           path: selftest
+
+      # Keeps the latest self-test pictures and printed PDFs on the ci/selftest branch for review.
+      - name: Publish self-test output to ci/selftest branch
+        if: always() && github.event_name == 'push'
+        shell: pwsh
+        run: |
+          Set-Location selftest
+          git init -q -b ci/selftest
+          git config user.name "Sievphov CI"
+          git config user.email "ci@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Self-test output for ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci/selftest
