@@ -140,6 +140,12 @@ test('job files: same shape as version 1, presets found by id or by name', () =>
   assert.equal(moved[0].presetId, 'z');
   assert.equal(moved[0].modified, false);
   assert.throws(() => M.fromJob({ Items: 3 }, lib), /not a Sievphov job file/);
+  // Repeat: kept in the job only when the list prints more than once
+  assert.equal('Repeat' in job, false);
+  assert.equal(M.jobRepeat(job), 1);
+  assert.equal(M.jobRepeat(M.toJob([x, y], 30)), 30);
+  assert.equal(M.jobRepeat({ Repeat: 'x' }), 1);
+  assert.equal(M.jobRepeat({ Repeat: 5000 }), 999);
 });
 
 test('report CSV quotes commas and quotes; per-printer totals; Khmer digits', () => {

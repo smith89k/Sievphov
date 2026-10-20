@@ -72,7 +72,8 @@ const state = {
   busy: 0, busyText: '',
   clipboard: null,
   sort: { key: null, dir: 1 },
-  presetPick: null        // the preset chosen in the panel's dropdown
+  presetPick: null,       // the preset chosen in the panel's dropdown
+  repeat: 1               // print the whole list this many times (sets), saved in the job
 };
 let uid = 0;
 const newItemId = () => 'f' + (++uid);
@@ -149,6 +150,7 @@ function busy(text) {
 const SIDES = { OneSide: '1-sided', LongEdge: '2-sided (long edge)', ShortEdge: '2-sided (short edge)' };
 const sidesText = s => s.Layout === 'Booklet' ? 'Booklet' : s.Layout === 'PagesPerSheet' ? `${s.Columns * s.Rows} per sheet · ${SIDES[s.Sides]}` : SIDES[s.Sides];
 const trayText = s => s.Tray || 'As in printer';
+const bindingText = s => `Booklet, bound on the ${s.Binding === 'Right' ? 'right' : 'left'}`;
 function describe(s) {
   const bits = [s.PrinterName || 'Default printer'];
   if (s.Tray) bits.push(s.Tray);
@@ -177,7 +179,7 @@ function statusOf(it) {
   const e = state.est.get(it.id);
   if (it.status === 'wait' && e && e.error) return { cls: 'check', text: 'Check pages', tip: e.error };
   if ((it.status === 'wait' || it.status === 'error') && it.pageCount === 0) return { cls: 'error', text: "Can't read", tip: it.message };
-  const text = it.status === 'printing' && it.message ? it.message : STATUS_WORD[it.status];
+  const text = (it.status === 'printing' || (it.status === 'wait' && state.printing)) && it.message ? it.message : STATUS_WORD[it.status];
   return { cls: it.status, text, tip: it.message || text };
 }
 const presetChip = it => it.presetName != null
@@ -458,7 +460,7 @@ function removeItems(list) {
 async function clearList() {
   if (state.printing || !state.items.length) return;
   if (!(await askConfirm(`Remove all ${plural(state.items.length, 'file')} from the list?`, 'Clear list', 'The files themselves are not touched.'))) return;
-  state.items = []; state.sel.clear(); state.est.clear(); state.jobPath = null; state.jobDirty = false;
+  state.items = []; state.sel.clear(); state.est.clear(); state.jobPath = null; state.jobDirty = false; state.repeat = 1;
   updateTitle(); refresh({ estimate: false }); buildPanel();
 }
 
@@ -482,12 +484,35 @@ function totals(list = ticked()) {
   return { files: list.length, pages, sheets, problems };
 }
 function renderSummary() {
-  const t = totals();
-  $('#sumFiles').textContent = t.files ? `${plural(t.files, 'file')} ticked · ${plural(t.pages, 'page')}` : 'No files ticked';
-  $('#sumSheets').textContent = t.files ? `about ${plural(t.sheets, 'sheet')}` : '';
-  if (!state.printing) $('#printLbl').textContent = t.files ? `Print ${plural(t.files, 'file')}` : 'Print';
+  const t = totals(), r = state.repeat;
+  $('#sumFiles').textContent = t.files ? `${plural(t.files, 'file')} ticked · ${plural(t.pages * r, 'page')}${r > 1 ? ` (${r} sets)` : ''}` : 'No files ticked';
+  $('#sumSheets').textContent = t.files ? `about ${plural(t.sheets * r, 'sheet')}` : '';
+  if (!state.printing) $('#printLbl').textContent = t.files ? `Print ${plural(t.files, 'file')}${r > 1 ? ` × ${r}` : ''}` : 'Print';
   $('#bPrint').disabled = !t.files || !!state.printing;
+  syncRepeat();
 }
+/* ---------- Repeat: the whole list N times, one complete set after another (N books of several files) ---------- */
+function syncRepeat() {
+  const input = $('#repeat');
+  if (document.activeElement !== input) input.value = state.repeat;
+  $('.repeat').classList.toggle('on', state.repeat > 1);
+  $('#repMinus').disabled = state.repeat <= 1 || !!state.printing;
+  $('#repPlus').disabled = state.repeat >= 999 || !!state.printing;
+  input.disabled = !!state.printing;
+}
+function setRepeat(n, { dirty = true } = {}) {
+  n = Math.max(1, Math.min(999, Math.round(+n) || 1));
+  if (n !== state.repeat) { state.repeat = n; if (dirty) markDirty(); }
+  renderSummary();
+}
+$('#repMinus').onclick = () => setRepeat(state.repeat - 1);
+$('#repPlus').onclick = () => setRepeat(state.repeat + 1);
+$('#repeat').addEventListener('change', e => { setRepeat(e.target.value); e.target.value = state.repeat; });
+$('#repeat').addEventListener('keydown', e => {
+  if (e.key === 'ArrowUp') { e.preventDefault(); setRepeat(state.repeat + 1); e.target.value = state.repeat; }
+  if (e.key === 'ArrowDown') { e.preventDefault(); setRepeat(state.repeat - 1); e.target.value = state.repeat; }
+  if (e.key === 'Enter') e.target.blur();
+});
 function renderStatus() {
   const n = state.items.length, t = state.items.filter(it => it.checked && it.pageCount > 0).length;
   $('#stFiles').textContent = n ? `${plural(n, 'file')} · ${t} ticked` : 'No files';
@@ -973,7 +998,8 @@ async function openJob(path) {
     const c = await askChoice('Replace the list with this job, or add its files to the list?', [['Cancel', 'outline'], ['Add to list', 'outline'], ['Replace list', 'primary']]);
     if (c === 0) return;
     if (c === 2) { state.items = []; state.sel.clear(); state.est.clear(); }
-  }
+    if (c === 2) state.repeat = M.jobRepeat(r.data);
+  } else state.repeat = M.jobRepeat(r.data);
   const paths = await desk.resolveJobPaths(path, r.data.Items.filter(e => e && typeof e.FilePath === 'string'));
   await addPdfs(paths, null, (it, i) => { const e = entries[i]; Object.assign(it, { settings: e.settings, presetId: e.presetId, presetName: e.presetName, modified: e.modified, checked: e.checked }); });
   state.jobPath = path; state.jobDirty = false; updateTitle();
@@ -982,7 +1008,7 @@ async function openJob(path) {
 async function saveJob(as) {
   if (!state.items.length || !desk) return;
   const name = state.jobPath ? null : (state.items[0]?.name || 'Print job').replace(/\.pdf$/i, '');
-  const p = await desk.saveJob(as ? null : state.jobPath, M.toJob(state.items), name);
+  const p = await desk.saveJob(as ? null : state.jobPath, M.toJob(state.items, state.repeat), name);
   if (!p) return;
   state.jobPath = p; state.jobDirty = false; updateTitle();
   toast(`Saved ${p.split(/[\\/]/).pop()}.`);
@@ -1012,13 +1038,26 @@ async function printCmd() {
   await runEstimate();
   const { html } = estimateTable(list);
   const go = await new Promise(res => {
+    const sheets = list.reduce((n, it) => n + (state.est.get(it.id)?.sheets || 0), 0);
     const { box, close } = openBox('wide', `<h2>Print ${plural(list.length, 'file')}?</h2>${html}
+      <div class="field"><span class="flabel">Repeat</span><div class="repeat-box"><span class="stepper"><button class="btn" type="button" data-step="-1" aria-label="Fewer times">−</button><input type="number" id="cfRepeat" min="1" max="999" step="1" value="${state.repeat}" aria-label="How many times to print the whole list"><button class="btn" type="button" data-step="1" aria-label="More times">+</button></span><span id="cfRepeatNote"></span></div></div>
       <div class="field"><span class="flabel">After printing</span><div class="row2" style="grid-template-columns:150px 1fr">
         <select id="apAct"><option value="Nothing">Do nothing</option><option value="MoveTo">Move PDFs to</option><option value="CopyTo">Copy PDFs to</option></select>
         <div style="display:flex;gap:6px"><input type="text" id="apDir" placeholder="Folder" value="${esc(state.settings.AfterPrintFolder)}" style="flex:1"><button class="tbtn" id="apPick" type="button">…</button></div></div></div>
       <div class="acts"><button class="btn outline" data-r="0">Cancel</button><button class="btn primary" data-r="1">${svg('print')}Print</button></div>`,
       { onCancel: () => { close(); res(false); } });
     const act = box.querySelector('#apAct'), dir = box.querySelector('#apDir');
+    const rep = box.querySelector('#cfRepeat'), repNote = () => {
+      const n = Math.max(1, Math.min(999, Math.round(+rep.value) || 1));
+      box.querySelector('#cfRepeatNote').textContent = n > 1
+        ? `The whole list ${n} times, one complete set after another: ${plural(n, 'set')} · about ${plural(sheets * n, 'sheet')} in all`
+        : 'The list once. Raise it to print the whole list again, e.g. one set per book.';
+      box.querySelector('h2').textContent = `Print ${plural(list.length, 'file')}${n > 1 ? `, ${n} times` : ''}?`;
+      return n;
+    };
+    rep.addEventListener('input', repNote);
+    box.querySelectorAll('[data-step]').forEach(b => b.onclick = () => { rep.value = Math.max(1, Math.min(999, (Math.round(+rep.value) || 1) + +b.dataset.step)); repNote(); });
+    repNote();
     act.value = state.settings.AfterPrint;
     const sync = () => { dir.disabled = box.querySelector('#apPick').disabled = act.value === 'Nothing'; };
     act.addEventListener('change', sync); sync();
@@ -1027,6 +1066,7 @@ async function printCmd() {
       const b = e.target.closest('[data-r]'); if (!b) return;
       if (b.dataset.r === '1' && act.value !== 'Nothing' && !dir.value.trim()) { toast('Choose the folder for the printed PDFs, or pick Do nothing.', true); return; }
       state.settings.AfterPrint = act.value; state.settings.AfterPrintFolder = dir.value.trim(); saveSettings();
+      if (b.dataset.r === '1') setRepeat(repNote());
       close(); res(b.dataset.r === '1');
     });
     box.querySelector('[data-r="1"]').focus();
@@ -1036,7 +1076,7 @@ async function printCmd() {
   state.printing = { paused: false, ids: new Set(list.map(it => it.id)), fraction: 0, text: 'Starting…' };
   setPrintingUi();
   try {
-    await eng('print', { items: list.map(engItem), after: { action: state.settings.AfterPrint, folder: state.settings.AfterPrintFolder } });
+    await eng('print', { items: list.map(engItem), repeat: state.repeat, after: { action: state.settings.AfterPrint, folder: state.settings.AfterPrintFolder } });
   } catch (e) {
     state.printing = null; setPrintingUi();
     toast('Printing could not start: ' + e.message, true);
@@ -1115,7 +1155,7 @@ function openPreview(start) {
       <span class="pv-tools"><span class="seg" role="group" aria-label="Show"><button class="btn on" id="pvAllBtn">${svg('pages')}<span>All sheets</span></button><button class="btn" id="pvOneBtn">${svg('doc')}<span>One sheet</span></button></span>
       <label class="pv-size" title="Size of the sheets">${svg('eye')}<input type="range" id="pvSize" min="0" max="${SIZES.length - 1}" step="1" value="${size}" aria-label="Sheet size"></label></span></div>
     <div class="side"><h4>Files <span class="count">${pool.length}</span></h4><div class="pv-files" id="pvFiles"></div>
-      <p class="hint">${onlyTicked ? 'Only the ticked files are shown: they are what Print sends.' : 'No file is ticked, so every file is shown.'} Pick another preset for a file above its sheets to see how it would print. The dashed line is the edge the printer can reach.</p></div>
+      <p class="hint">${onlyTicked ? 'Only the ticked files are shown: they are what Print sends.' : 'No file is ticked, so every file is shown.'} Pick another preset for a file above its sheets to see how it would print. The dashed line is the edge the printer can reach; on a booklet the dash-dot line in the middle is the fold, which becomes the spine.</p></div>
     <div class="view"><div class="pv-all" id="pvAll" tabindex="0"></div>
       <div class="pv-one" id="pvOne" hidden><div class="info" id="pvInfo"></div><div class="stage" id="pvStage"><span class="none">Drawing…</span></div>
         <div class="nav"><button class="btn icon" id="pvPrev" title="Previous side (←)">${svg('left')}</button><span id="pvNum"></span><button class="btn icon" id="pvNext" title="Next side (→)">${svg('right')}</button></div></div></div>
@@ -1137,7 +1177,7 @@ function openPreview(start) {
   const factLine = it => {
     const s = it.settings, e = sidesOf.get(it.id) || {};
     const prints = e.error ? e.error : `${plural(e.sheets || 0, 'sheet')} · ${plural(e.pagesPrinted || 0, 'page')}${s.Copies > 1 ? ` (${plural(s.Copies, 'copy', 'copies')})` : ''}`;
-    return [printerOf(s), trayText(s), s.PaperSize || 'Printer paper', sidesText(s), prints];
+    return [printerOf(s), trayText(s), s.PaperSize || 'Printer paper', s.Layout === 'Booklet' ? bindingText(s) : sidesText(s), prints];
   };
   const presetSelect = it => `<select class="pv-preset" aria-label="Preset of ${esc(it.name)}" title="Pick a preset to see how this file would print with it">
       ${it.presetName == null ? `<option value="" selected>${esc(M.presetLabel(it))}</option>` : ''}
@@ -1270,7 +1310,7 @@ function openPreview(start) {
       stage.innerHTML = `<img alt="Sheet preview" src="${srcOf(r)}">`;
       sheetIn = { w: r.widthIn, h: r.heightIn };
       fitImg();
-      q('#pvInfo').textContent = `${it.name} · ${M.presetLabel(it)}${it.modified && it.presetName != null ? ' *' : ''} · sheet ${r.sheet}${r.twoSided ? (r.isBack ? ', back' : ', front') : ''} · ${pagesOf(r)} · ${r.widthIn.toFixed(2)} × ${r.heightIn.toFixed(2)} in`;
+      q('#pvInfo').textContent = `${it.name} · ${M.presetLabel(it)}${it.modified && it.presetName != null ? ' *' : ''}${it.settings.Layout === 'Booklet' ? ' · bound on the ' + (it.settings.Binding === 'Right' ? 'right' : 'left') : ''} · sheet ${r.sheet}${r.twoSided ? (r.isBack ? ', back' : ', front') : ''} · ${pagesOf(r)} · ${r.widthIn.toFixed(2)} × ${r.heightIn.toFixed(2)} in`;
     } catch (e) {
       if (my !== seq) return;
       stage.innerHTML = `<span class="none">${esc(e.message)}</span>`; q('#pvInfo').textContent = '';

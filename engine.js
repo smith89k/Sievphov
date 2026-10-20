@@ -167,8 +167,14 @@ function fakePreview(item, side, maxPx) {
       (s.PageNumbers && s.PageNumbers.Enabled ? `<text x="${x + w / 2}" y="${y + h - 18}" font-size="16" fill="#333" text-anchor="middle">${p}</text>` : '') +
       (s.Watermark && s.Watermark.Enabled ? `<text x="${x + w / 2}" y="${y + h / 2}" font-size="${Math.min(60, w / 6)}" fill="${s.Watermark.Color || '#f00'}" opacity=".3" text-anchor="middle" transform="rotate(-${s.Watermark.Angle ?? 45} ${x + w / 2} ${y + h / 2})">${String(s.Watermark.Text || '').replace(/[<&>]/g, '')}</text>` : '');
   });
+  // a booklet's fold (the spine), as the real engine draws it in previews
+  const fold = s.Layout === 'Booklet'
+    ? `<line x1="${W / 2}" y1="0" x2="${W / 2}" y2="${H}" stroke="#6a3fd8" stroke-opacity=".8" stroke-width="2.5" stroke-dasharray="14 5 3 5"/>` +
+      `<rect x="${W / 2 - 80}" y="9" width="160" height="28" rx="14" fill="#fff" stroke="#6a3fd8" stroke-opacity=".8" stroke-width="1.5"/>` +
+      `<text x="${W / 2}" y="24" font-family="Segoe UI, sans-serif" font-size="18" font-weight="700" fill="#6a3fd8" text-anchor="middle" dominant-baseline="middle">Fold · spine</text>`
+    : '';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#fff"/>${cells}` +
-    `<rect x="${m}" y="${m}" width="${W - 2 * m}" height="${H - 2 * m}" fill="none" stroke="#6a3fd8" stroke-opacity=".45" stroke-dasharray="6 5"/></svg>`;
+    `<rect x="${m}" y="${m}" width="${W - 2 * m}" height="${H - 2 * m}" fill="none" stroke="#6a3fd8" stroke-opacity=".45" stroke-dasharray="6 5"/>${fold}</svg>`;
   return {
     png: null, svg: Buffer.from(svg).toString('base64'), side: i, sides: sides.length, sheet: sd.sheet + 1, isBack: sd.isBack, twoSided,
     slots: sd.slots, widthIn: W / 100, heightIn: H / 100
@@ -190,24 +196,34 @@ function fakeEngine(emit, listeners) {
       const items = a.items || [], report = [];
       run = { paused: false, stopped: false };
       const r = run;
+      // as PrintEngine.RunAll: the whole list `repeat` times, set after set; a file with an error is skipped afterwards
+      const repeat = Math.max(1, Math.min(999, a.repeat | 0 || 1)), count = items.length * repeat;
+      const rows = items.map(it => ({ id: it.id, fileName: path.basename(it.path), folder: path.dirname(it.path), printer: it.settings.PrinterName || FAKE_PRINTERS[0].name,
+        copies: it.settings.Copies || 1, pages: 0, sheets: 0, sets: 0, status: '', message: '', started: new Date().toISOString() }));
+      const failed = new Set();
       (async () => {
-        for (let f = 0; f < items.length; f++) {
-          const it = items[f], est = fakeEstimate(it.settings || {}, it.pageCount);
-          const row = { id: it.id, fileName: path.basename(it.path), folder: path.dirname(it.path), printer: it.settings.PrinterName || FAKE_PRINTERS[0].name,
-            copies: it.settings.Copies || 1, pages: est.pagesPrinted, sheets: est.sheets, status: 'Printed', message: '', started: new Date().toISOString() };
-          if (r.stopped) { row.status = 'Stopped'; row.message = 'Not printed (stopped)'; report.push(row); continue; }
-          if (est.error) { row.status = 'Error'; row.message = est.error; report.push(row); emit({ event: 'progress', progress: { id: it.id, status: 'error', message: est.error, file: f + 1, files: items.length, fraction: (f + 1) / items.length } }); continue; }
-          const sides = Math.max(1, est.sides * (it.settings.Copies || 1));
-          for (let k = 1; k <= sides && !r.stopped; k++) {
-            while (r.paused && !r.stopped) await new Promise(res => setTimeout(res, 100));
-            await new Promise(res => setTimeout(res, 120));
-            emit({ event: 'progress', progress: { id: it.id, status: 'printing', message: `Side ${k} of ${sides}`, side: k, sides, file: f + 1, files: items.length, fraction: (f + k / sides) / items.length } });
+        for (let set = 0; set < repeat; set++) {
+          const label = repeat > 1 ? `Set ${set + 1} of ${repeat} · ` : '';
+          for (let f = 0; f < items.length; f++) {
+            const it = items[f], row = rows[f], k = set * items.length + f, est = fakeEstimate(it.settings || {}, it.pageCount);
+            const prog = (status, message, done) => emit({ event: 'progress', progress: { id: it.id, status, message, file: k + 1, files: count, fraction: done / count } });
+            if (failed.has(f)) continue;
+            if (r.stopped) { row.status = 'Stopped'; row.message = row.sets ? `Not printed (stopped) — ${row.sets} sets printed` : 'Not printed (stopped)'; failed.add(f); prog('stopped', row.message, k); continue; }
+            if (est.error) { row.status = 'Error'; row.message = est.error; failed.add(f); prog('error', est.error, k + 1); continue; }
+            const sides = Math.max(1, est.sides * (it.settings.Copies || 1));
+            for (let n = 1; n <= sides && !r.stopped; n++) {
+              while (r.paused && !r.stopped) await new Promise(res => setTimeout(res, 100));
+              await new Promise(res => setTimeout(res, 120 / repeat));
+              emit({ event: 'progress', progress: { id: it.id, status: 'printing', message: `${label}Side ${n} of ${sides}`, side: n, sides, file: k + 1, files: count, fraction: (k + n / sides) / count } });
+            }
+            if (r.stopped) { row.status = 'Stopped'; row.message = 'Stopped while printing'; failed.add(f); prog('stopped', row.message, k + 1); continue; }
+            row.pages += est.pagesPrinted; row.sheets += est.sheets; row.sets++;
+            if (row.sets < repeat) { prog('wait', `${row.sets} of ${repeat} sets printed`, k + 1); continue; }
+            row.status = 'Printed'; row.message = repeat > 1 ? `${repeat} sets` : ''; row.finished = new Date().toISOString();
+            prog('printed', row.message, k + 1);
           }
-          if (r.stopped) { row.status = 'Stopped'; row.message = 'Stopped while printing'; }
-          emit({ event: 'progress', progress: { id: it.id, status: r.stopped ? 'stopped' : 'printed', message: '', file: f + 1, files: items.length, fraction: (f + 1) / items.length } });
-          row.finished = new Date().toISOString();
-          report.push(row);
         }
+        report.push(...rows);
         run = null;
         emit({ event: 'done', report });
       })();

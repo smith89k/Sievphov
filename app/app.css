@@ -245,6 +245,19 @@ body.dropping .list::after{content:"Drop PDF files or folders to add them";posit
 /* the print bar at the foot of the panel: what will happen · Print / Pause · Stop */
 .printbar{flex:none;display:flex;flex-direction:column;gap:8px;padding:12px 16px 14px;border-top:1px solid var(--line);background:var(--chrome-2)}
 .printbar .go{height:40px;font-size:14px}
+.repeat{display:flex;align-items:center;gap:8px}
+.repeat .rl{display:flex;flex-direction:column;min-width:0;flex:1;line-height:1.3}
+.repeat .rl b{font-size:12.5px;font-weight:600}
+.repeat .rl small{color:var(--ink-3);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.repeat .rx{color:var(--ink-2);font-size:12px}
+.stepper{display:inline-flex;align-items:stretch;height:30px;border:1px solid var(--line-2);border-radius:6px;background:var(--field);overflow:hidden;flex:none}
+.stepper .btn{height:auto;min-width:26px;padding:0;border-radius:0;font-size:15px;color:var(--ink-2)}
+.stepper .btn:hover:not(:disabled){background:var(--accent-soft);color:var(--accent)}
+.stepper input{width:44px;border:0;border-left:1px solid var(--line-2);border-right:1px solid var(--line-2);background:transparent;text-align:center;font:inherit;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+.stepper input::-webkit-inner-spin-button,.stepper input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.stepper input:focus{outline:none;background:var(--accent-soft)}
+.repeat.on .stepper{border-color:var(--accent)}
+.repeat.on .stepper input{color:var(--accent)}
 .printbar .run{display:flex;gap:6px}
 .printbar .run .btn{flex:1;border-color:var(--line-2);background:var(--field)}
 .printbar .sum{display:flex;justify-content:space-between;gap:8px;color:var(--ink-2);font-size:12px;font-variant-numeric:tabular-nums}
@@ -274,6 +287,8 @@ body.dropping .list::after{content:"Drop PDF files or folders to add them";posit
 .modal .names{margin:0;padding:8px 10px 8px 26px;max-height:168px;overflow-y:auto;background:var(--chrome);border:1px solid var(--line);border-radius:6px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
 .modal .field :is(input[type=text],input[type=password],select:not(.big)){height:34px}
 .modal.wide{max-width:580px}
+.repeat-box{display:flex;align-items:center;gap:10px;color:var(--ink-2);font-size:12px;line-height:1.4}
+.repeat-box .stepper{height:32px}
 .est{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
 .est th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);padding:6px 8px;border-bottom:1px solid var(--line)}
 .est td{padding:7px 8px;border-bottom:1px solid var(--line)}

@@ -35,8 +35,12 @@ public sealed class PrintEngine
         _running.Set();
     }
 
-    /// <summary>Runs on its own STA thread so the window stays responsive.</summary>
-    public Task<List<ReportRow>> RunAsync(IReadOnlyList<JobItem> items, AfterPrintSettings after)
+    /// <summary>
+    /// Runs on its own STA thread so the window stays responsive. <paramref name="repeat"/> prints the whole list that
+    /// many times, set after set in list order (a book made of several files → that many books); each file is moved or
+    /// copied after its last set only.
+    /// </summary>
+    public Task<List<ReportRow>> RunAsync(IReadOnlyList<JobItem> items, AfterPrintSettings after, int repeat = 1)
     {
         _cts = new CancellationTokenSource();
         _running.Set();
@@ -45,7 +49,7 @@ public sealed class PrintEngine
         {
             try
             {
-                done.SetResult(RunAll(items, after, _cts.Token));
+                done.SetResult(RunAll(items, after, Math.Clamp(repeat, 1, 999), _cts.Token));
             }
             catch (Exception ex)
             {
@@ -61,65 +65,87 @@ public sealed class PrintEngine
         return done.Task;
     }
 
-    private List<ReportRow> RunAll(IReadOnlyList<JobItem> items, AfterPrintSettings after, CancellationToken token)
+    private List<ReportRow> RunAll(IReadOnlyList<JobItem> items, AfterPrintSettings after, int repeat, CancellationToken token)
     {
-        var report = new List<ReportRow>();
-        for (int n = 0; n < items.Count; n++)
+        var report = items.Select(item => new ReportRow
         {
-            var item = items[n];
-            var row = new ReportRow
-            {
-                Id = item.Id,
-                FileName = item.FileName,
-                Folder = item.Folder,
-                Printer = string.IsNullOrEmpty(item.Settings.PrinterName) ? PrinterCatalog.DefaultPrinter() : item.Settings.PrinterName,
-                Copies = item.Settings.Copies,
-                Started = DateTime.Now,
-            };
-            report.Add(row);
+            Id = item.Id,
+            FileName = item.FileName,
+            Folder = item.Folder,
+            Printer = string.IsNullOrEmpty(item.Settings.PrinterName) ? PrinterCatalog.DefaultPrinter() : item.Settings.PrinterName,
+            Copies = item.Settings.Copies,
+            Started = DateTime.Now,
+        }).ToList();
+        var failed = new bool[items.Count];
+        int count = items.Count * repeat;
 
-            if (token.IsCancellationRequested)
+        for (int set = 0; set < repeat; set++)
+        {
+            string label = repeat > 1 ? $"Set {set + 1} of {repeat} · " : "";
+            for (int n = 0; n < items.Count; n++)
             {
-                Report(item, "stopped", "Not printed (stopped)", n, items.Count, n);
-                row.Status = "Stopped";
-                row.Message = "Not printed (stopped)";
-                continue;
-            }
+                var item = items[n];
+                var row = report[n];
+                int k = set * items.Count + n;
+                if (failed[n]) continue;   // an error in one set would come back in every set
+                if (token.IsCancellationRequested)
+                {
+                    Report(item, "stopped", Stopped(row, "Not printed (stopped)"), k, count, k);
+                    failed[n] = true;
+                    continue;
+                }
 
-            try
-            {
-                Report(item, "printing", "Starting…", n, items.Count, n);
-                var (pages, sheets, cancelled) = PrintOne(item, n, items.Count, token);
-                row.Pages = pages;
-                row.Sheets = sheets;
-                if (cancelled)
+                try
                 {
-                    Report(item, "stopped", "Stopped while printing", n, items.Count, n + 1);
-                    row.Status = "Stopped";
-                    row.Message = "Stopped while printing";
+                    Report(item, "printing", label + "Starting…", k, count, k);
+                    var (pages, sheets, cancelled) = PrintOne(item, k, count, label, token);
+                    row.Pages += pages;
+                    row.Sheets += sheets;
+                    if (cancelled)
+                    {
+                        Report(item, "stopped", Stopped(row, "Stopped while printing"), k, count, k + 1);
+                        failed[n] = true;
+                    }
+                    else
+                    {
+                        row.Sets++;
+                        if (row.Sets < repeat) Report(item, "wait", $"{row.Sets} of {repeat} sets printed", k, count, k + 1);
+                        else
+                        {
+                            var (note, newPath) = AfterPrint(item, after);
+                            row.NewPath = newPath;
+                            row.Status = "Printed";
+                            row.Message = repeat > 1 ? $"{repeat} sets" + (note.Length > 0 ? " · " + note : "") : note;
+                            row.Finished = DateTime.Now;
+                            Report(item, "printed", row.Message, k, count, k + 1);
+                        }
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    var (note, newPath) = AfterPrint(item, after);
-                    row.NewPath = newPath;
-                    row.Status = "Printed";
-                    row.Message = note;
-                    Report(item, "printed", note, n, items.Count, n + 1);
+                    var message = PdfFile.Describe(ex);
+                    if (row.Sets > 0) message = $"{message} (after {row.Sets} of {repeat} sets)";
+                    Report(item, "error", message, k, count, k + 1);
+                    row.Status = "Error";
+                    row.Message = message;
+                    row.Finished = DateTime.Now;
+                    failed[n] = true;
                 }
             }
-            catch (Exception ex)
-            {
-                var message = PdfFile.Describe(ex);
-                Report(item, "error", message, n, items.Count, n + 1);
-                row.Status = "Error";
-                row.Message = message;
-            }
-            row.Finished = DateTime.Now;
         }
         return report;
     }
 
-    private (int Pages, int Sheets, bool Cancelled) PrintOne(JobItem item, int index, int count, CancellationToken token)
+    /// <summary>Marks a row stopped; a file that printed some sets says how many.</summary>
+    private static string Stopped(ReportRow row, string why)
+    {
+        row.Status = "Stopped";
+        row.Message = row.Sets > 0 ? $"{why} — {row.Sets} sets printed" : why;
+        row.Finished = DateTime.Now;
+        return row.Message;
+    }
+
+    private (int Pages, int Sheets, bool Cancelled) PrintOne(JobItem item, int index, int count, string label, CancellationToken token)
     {
         var s = item.Settings;
         if (!File.Exists(item.FilePath)) throw new FileNotFoundException("File not found", item.FilePath);
@@ -176,7 +202,7 @@ public sealed class PrintEngine
             }
 
             next++;
-            Progress?.Invoke(new PrintProgress(item.Id, "printing", $"Side {next} of {sequence.Count}", next, sequence.Count,
+            Progress?.Invoke(new PrintProgress(item.Id, "printing", $"{label}Side {next} of {sequence.Count}", next, sequence.Count,
                 index + 1, count, (index + (double)next / sequence.Count) / count));
             e.HasMorePages = next < sequence.Count;
         };

@@ -172,15 +172,19 @@ function differsFromPreset(items, p, lib) {
 }
 
 /* ---------------------------------------------------------------- jobs (.svpv) */
-function toJob(items) {
+function toJob(items, repeat = 1) {
   return {
     Version: 1,
+    ...(repeat > 1 ? { Repeat: repeat } : {}),   // print the whole list this many times; left out at 1 (as version 1 files)
     Items: items.map(it => ({
       FilePath: it.path, Checked: !!it.checked, PresetId: it.presetId ?? null, PresetName: it.presetName ?? null,
       Modified: !!it.modified, Settings: clone(it.settings)
     }))
   };
 }
+
+/** How many times a job prints its whole list (1 for files without Repeat, and for nonsense). */
+const jobRepeat = data => { const n = isObj(data) ? data.Repeat : 1; return Number.isInteger(n) && n >= 1 ? Math.min(n, 999) : 1; };
 
 /** Job entries → what each new item starts with; presets are found by id, else by name (a job from another PC). */
 function fromJob(data, lib) {
@@ -224,7 +228,7 @@ const M = {
   DEFAULTS, defaults, normalize, clone, equal, get, set, isTwoSided, newId,
   starterLibrary, readLibrary, findPreset, findPresetByName, defaultPreset, uniqueName, importInto,
   applyPreset, markModified, setField, setAll, resetToPreset, libraryChanged, presetLabel, shared, differsFromPreset,
-  toJob, fromJob, reportCsv, byPrinter, khmerDigits
+  toJob, fromJob, jobRepeat, reportCsv, byPrinter, khmerDigits
 };
 if (typeof module === 'object' && module.exports) module.exports = M; else root.SievphovModel = M;
 })(this);

@@ -128,6 +128,7 @@ public static class Program
             renderer.DrawSide(g, printable, side);
             using var pen = new Pen(Color.FromArgb(110, 106, 63, 216), 1f / scale) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash };
             g.DrawRectangle(pen, printable.X, printable.Y, printable.Width, printable.Height);
+            if (s.Layout == LayoutMode.Booklet) DrawFold(g, s, sheet, printable, scale);
         }
         using var png = new MemoryStream();
         bmp.Save(png, ImageFormat.Png);
@@ -145,6 +146,39 @@ public static class Program
         };
     }
 
+    /// <summary>
+    /// Preview only (like the dashed printable edge): where a booklet sheet is folded, which is the book's spine,
+    /// as a dash-dot line over the whole sheet with a small "Fold · spine" tag at the top edge.
+    /// </summary>
+    private static void DrawFold(Graphics g, PrintSettings s, SizeF sheet, RectangleF printable, float scale)
+    {
+        var slots = LayoutMath.Slots(printable, s);
+        float x = (slots[0].Right + slots[1].Left) / 2;
+        var purple = Color.FromArgb(106, 63, 216);
+        using (var fold = new Pen(Color.FromArgb(200, purple), Math.Max(1.5f / scale, sheet.Height / 380f)) { DashStyle = System.Drawing.Drawing2D.DashStyle.DashDot })
+            g.DrawLine(fold, x, 0, x, sheet.Height);
+
+        const string tag = "Fold · spine";
+        using var font = new Font("Segoe UI", Math.Max(9f / scale, sheet.Height * 0.026f), FontStyle.Bold, GraphicsUnit.World);
+        var size = g.MeasureString(tag, font);
+        float padX = size.Height * 0.45f, w = size.Width + padX * 2, h = size.Height * 1.15f, top = Math.Max(1f / scale, printable.Top * 0.4f);
+        var box = new RectangleF(x - w / 2, top, w, h);
+        using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+        {
+            path.AddArc(box.Left, box.Top, h, h, 90, 180);
+            path.AddArc(box.Right - h, box.Top, h, h, 270, 180);
+            path.CloseFigure();
+            using var fill = new SolidBrush(Color.FromArgb(240, 255, 255, 255));
+            using var edge = new Pen(Color.FromArgb(200, purple), 1f / scale);
+            g.FillPath(fill, path);
+            g.DrawPath(edge, path);
+        }
+        using var ink = new SolidBrush(purple);
+        using var centred = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+        g.DrawString(tag, font, ink, box, centred);
+    }
+
     private static object Print(JsonElement req)
     {
         if (_printing is not null) throw new InvalidOperationException("Already printing");
@@ -153,7 +187,8 @@ public static class Program
         var engine = new PrintEngine();
         engine.Progress += p => Send(new { @event = "progress", progress = p });
         _printing = engine;
-        engine.RunAsync(items, after).ContinueWith(t =>
+        int repeat = req.TryGetProperty("repeat", out var rp) && rp.ValueKind == JsonValueKind.Number ? rp.GetInt32() : 1;
+        engine.RunAsync(items, after, repeat).ContinueWith(t =>
         {
             _printing = null;
             if (t.IsFaulted) Send(new { @event = "done", error = PdfFile.Describe(t.Exception!.GetBaseException()), report = Array.Empty<ReportRow>() });

@@ -21,6 +21,8 @@ public sealed class ReportRow
     public int Pages { get; set; }
     public int Sheets { get; set; }
     public int Copies { get; set; }
+    /// <summary>How many times the whole list was printed for this file (Repeat).</summary>
+    public int Sets { get; set; }
     /// <summary>Where the PDF is now, when it was moved after printing.</summary>
     public string? NewPath { get; set; }
     public DateTime Started { get; set; }

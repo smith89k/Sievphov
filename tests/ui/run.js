@@ -123,6 +123,8 @@ app.whenReady().then(async () => {
     await waitFor(() => js(`/front 120 \\| 1 · back 2 \\| 119/.test(document.querySelector('.pv-group .pv-sheet figcaption').textContent)`), 'booklet sheet 1 drawn');
     check(true, 'booklet sheet 1: front 120 | 1, back 2 | 119');
     await waitFor(() => js(`document.querySelectorAll('.pv-group')[0].querySelectorAll('.pv-side img').length >= 6`), 'more sheets drawn');
+    check(await js(`document.querySelector('.pv-group .pv-gh small').textContent.includes('Booklet, bound on the left')`), 'preview says where a booklet is bound');
+    check(await js(`atob(document.querySelector('.pv-group .pv-side img').src.split(',')[1]).includes('Fold')`), 'booklet sheets show the fold (spine)');
     await shot('05-preview');
     await js(`(() => { const s = document.querySelectorAll('.pv-group .pv-preset')[2]; s.value = [...s.options].find(o => o.textContent.startsWith('Both sides')).value; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
     await waitFor(() => js(`(document.querySelectorAll('.pv-group')[2].querySelector('.pv-gh small')?.textContent || '').includes('2-sided')`), 'preset changed in preview');
@@ -167,12 +169,19 @@ app.whenReady().then(async () => {
     for (const i of [0, 1]) await js(`(() => { const t = document.querySelectorAll('.row')[${i}].querySelector('.tick'); t.checked = false; t.dispatchEvent(new Event('change', { bubbles: true })); })()`);
     await sleep(300);
     check((await js(`document.getElementById('printLbl').textContent`)) === 'Print 2 files', 'Print button counts the ticked files');
+    // Repeat: the whole list 3 times (3 books)
+    await click('#repPlus'); await click('#repPlus');
+    check((await js(`document.getElementById('printLbl').textContent`)) === 'Print 2 files × 3', 'Repeat 3: the Print button says × 3');
+    check((await js(`document.getElementById('sumFiles').textContent`)).includes('(3 sets)'), 'Repeat 3: the summary counts 3 sets');
+    await shot('07b-repeat');
     await key('P', ['control']);
     await waitFor(() => js(`!!document.querySelector('.modal.wide .est')`), 'print box');
+    check((await js(`document.getElementById('cfRepeatNote').textContent`)).includes('3 sets'), 'the Print box says the list prints 3 times');
     await shot('08-print-confirm');
     await click('.modal.wide [data-r="1"]');
     await waitFor(() => js(`!!document.querySelector('.modal.report')`), 'report', 20000);
     check((await js(`document.querySelector('.modal.report').innerText`)).includes('2 printed'), 'report: 2 printed');
+    check((await js(`document.querySelector('.modal.report').innerText`)).includes('3 sets'), 'report: each file printed 3 sets');
     await shot('09-report');
     await click('.modal.report [data-a="close"]');
     check((await rowText(2)).includes('Printed'), 'printed files say Printed');

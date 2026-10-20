@@ -96,3 +96,16 @@ to see how their file look when printed". So:
   - **One sheet** (click a sheet, or the switch in the header): that side large, click = actual size, ← → / PgUp / PgDn
     go on across files; Esc returns to all sheets, Esc again closes.
   - Sides per file come from `estimate` (`sides` per copy), so the engine protocol is unchanged.
+
+## Change (same day): the fold in previews; Repeat
+- "since it have binding why in preview not show the binding": a booklet's previews (engine `Preview`, `DrawFold`, and
+  the stand-in engine) draw the fold — the book's spine — as a purple dash-dot line over the whole sheet with a "Fold ·
+  spine" tag at the top edge; preview only, never printed (like the dashed printable edge). The Preview's words say
+  "Booklet, bound on the left / right".
+- "should have option for repeat printing, coz we want how many book": **Repeat** = print the whole list N times
+  (1–999), set after set in list order. Print bar: "Repeat [− N +] times" above the Print button ("Print 2 files × 3",
+  totals × N); the Print box has the same field with the total. `print { items, after, repeat }`: `PrintEngine.RunAll`
+  loops the sets; a file that fails or is stopped is skipped in later sets; the after-printing move / copy runs after a
+  file's last set only (a move after set 1 would lose the file for set 2); between sets a file says "1 of 3 sets
+  printed"; the report has one row per file (pages and sheets of all sets, `Sets`, message "3 sets"). Saved in the job
+  as `Repeat` (only when > 1, so version 1 files are unchanged); `M.jobRepeat(data)` reads it.
