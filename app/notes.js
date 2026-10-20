@@ -13,10 +13,11 @@ const NOTES = Object.freeze([
     ['new', 'A new look, laid out like Bohpum: the title row with the File, Edit, Presets, View and Help menus and the job\'s name, a toolbar under it, the files in the middle and their settings on the right. The same fonts, boxes and light and dark theme as Bohpum and Sastra PDF (the button at the top right, or View › Theme).'],
     ['new', 'Presets sit at the top of the panel on the right: pick one, then Apply to selected. Save as preset, Update preset and Manage presets are next to it.'],
     ['new', 'File settings are now a panel on the right. Select one or more files and change anything there: it applies at once to every selected file, only for the setting you changed. Values that differ from the file\'s preset are bold, and Reset to preset puts them back.'],
-    ['new', 'Repeat: print the whole list several times, one complete set after another (file 1, 2, 3 … then again). Set it next to the Print button or in the Print box: for 30 books made of several files, set 30. Each file is moved or copied after its last set, and saved jobs keep the number.'],
+    ['new', 'Repeat: print the whole list several times, one complete set after another (file 1, 2, 3 … then again). Set it next to the Print button: for 30 books made of several files, set 30. Each file is moved or copied after its last set, and saved jobs keep the number.'],
     ['new', 'Ctrl+1 … Ctrl+9 apply the first nine presets. Each preset keeps the printer, paper tray, paper, sides, copies, pages, layout, page numbers and watermark.'],
     ['new', 'Drag files in the list to put them in another order, or click a column heading to sort.'],
     ['improved', 'Preview fills the window and shows every ticked file one after the other, each with its preset, printer, tray and sides, and every sheet exactly as it will print (a book shows the front and back of each sheet side by side, with the fold — the spine — marked and where it is bound). Pick another preset above a file\'s sheets to see how it would print. Click a sheet to see it large; ← → go on into the next file.'],
+    ['improved', 'Print only asks a short question — how many files, how many times, about how many sheets on which printer — then prints. What happens to the PDFs afterwards is in File › After Printing….'],
     ['improved', 'Every message is now in Sievphov\'s own boxes, never a Windows message box.']
   ]),
   N('1.0.0', '2026-10-19', [

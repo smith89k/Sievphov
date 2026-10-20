@@ -175,10 +175,12 @@ app.whenReady().then(async () => {
     check((await js(`document.getElementById('sumFiles').textContent`)).includes('(3 sets)'), 'Repeat 3: the summary counts 3 sets');
     await shot('07b-repeat');
     await key('P', ['control']);
-    await waitFor(() => js(`!!document.querySelector('.modal.wide .est')`), 'print box');
-    check((await js(`document.getElementById('cfRepeatNote').textContent`)).includes('3 sets'), 'the Print box says the list prints 3 times');
+    await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'print question');
+    const ask = await js(`document.querySelector('.modal.ask').innerText`);
+    check(ask.includes('Print 2 files, 3 times?') && /About 9 sheets on/.test(ask), 'Print asks a plain question: files, times, sheets');
+    check(await js(`document.querySelectorAll('.modal.ask .acts .btn').length === 2 && !document.querySelector('.modal.ask select, .modal.ask input')`), 'the question has only Cancel and Print');
     await shot('08-print-confirm');
-    await click('.modal.wide [data-r="1"]');
+    await click('.modal.ask [data-r="1"]');
     await waitFor(() => js(`!!document.querySelector('.modal.report')`), 'report', 20000);
     check((await js(`document.querySelector('.modal.report').innerText`)).includes('2 printed'), 'report: 2 printed');
     check((await js(`document.querySelector('.modal.report').innerText`)).includes('3 sets'), 'report: each file printed 3 sets');

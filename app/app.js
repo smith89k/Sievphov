@@ -1036,41 +1036,18 @@ async function printCmd() {
   const list = ticked();
   if (!list.length) { toast('No files are ticked. Tick the files you want to print.'); return; }
   await runEstimate();
-  const { html } = estimateTable(list);
-  const go = await new Promise(res => {
-    const sheets = list.reduce((n, it) => n + (state.est.get(it.id)?.sheets || 0), 0);
-    const { box, close } = openBox('wide', `<h2>Print ${plural(list.length, 'file')}?</h2>${html}
-      <div class="field"><span class="flabel">Repeat</span><div class="repeat-box"><span class="stepper"><button class="btn" type="button" data-step="-1" aria-label="Fewer times">−</button><input type="number" id="cfRepeat" min="1" max="999" step="1" value="${state.repeat}" aria-label="How many times to print the whole list"><button class="btn" type="button" data-step="1" aria-label="More times">+</button></span><span id="cfRepeatNote"></span></div></div>
-      <div class="field"><span class="flabel">After printing</span><div class="row2" style="grid-template-columns:150px 1fr">
-        <select id="apAct"><option value="Nothing">Do nothing</option><option value="MoveTo">Move PDFs to</option><option value="CopyTo">Copy PDFs to</option></select>
-        <div style="display:flex;gap:6px"><input type="text" id="apDir" placeholder="Folder" value="${esc(state.settings.AfterPrintFolder)}" style="flex:1"><button class="tbtn" id="apPick" type="button">…</button></div></div></div>
-      <div class="acts"><button class="btn outline" data-r="0">Cancel</button><button class="btn primary" data-r="1">${svg('print')}Print</button></div>`,
-      { onCancel: () => { close(); res(false); } });
-    const act = box.querySelector('#apAct'), dir = box.querySelector('#apDir');
-    const rep = box.querySelector('#cfRepeat'), repNote = () => {
-      const n = Math.max(1, Math.min(999, Math.round(+rep.value) || 1));
-      box.querySelector('#cfRepeatNote').textContent = n > 1
-        ? `The whole list ${n} times, one complete set after another: ${plural(n, 'set')} · about ${plural(sheets * n, 'sheet')} in all`
-        : 'The list once. Raise it to print the whole list again, e.g. one set per book.';
-      box.querySelector('h2').textContent = `Print ${plural(list.length, 'file')}${n > 1 ? `, ${n} times` : ''}?`;
-      return n;
-    };
-    rep.addEventListener('input', repNote);
-    box.querySelectorAll('[data-step]').forEach(b => b.onclick = () => { rep.value = Math.max(1, Math.min(999, (Math.round(+rep.value) || 1) + +b.dataset.step)); repNote(); });
-    repNote();
-    act.value = state.settings.AfterPrint;
-    const sync = () => { dir.disabled = box.querySelector('#apPick').disabled = act.value === 'Nothing'; };
-    act.addEventListener('change', sync); sync();
-    box.querySelector('#apPick').onclick = async () => { const p = await desk.pickFolder('Folder for printed PDFs'); if (p) dir.value = p; };
-    box.addEventListener('click', e => {
-      const b = e.target.closest('[data-r]'); if (!b) return;
-      if (b.dataset.r === '1' && act.value !== 'Nothing' && !dir.value.trim()) { toast('Choose the folder for the printed PDFs, or pick Do nothing.', true); return; }
-      state.settings.AfterPrint = act.value; state.settings.AfterPrintFolder = dir.value.trim(); saveSettings();
-      if (b.dataset.r === '1') setRepeat(repNote());
-      close(); res(b.dataset.r === '1');
-    });
-    box.querySelector('[data-r="1"]').focus();
-  });
+  // only a question: what prints where; Repeat is next to the Print button, After printing in File › After Printing…
+  const est = list.map(it => state.est.get(it.id) || {}), n = state.repeat;
+  const byPrinter = M.byPrinter(list, est, defaultPrinter());
+  const sheets = byPrinter.reduce((t, r) => t + r.sheets, 0) * n;
+  const where = byPrinter.length === 1 ? `on ${byPrinter[0].printer}` : `on ${byPrinter.length} printers: ` + byPrinter.map(r => `${r.printer} (${r.sheets * n})`).join(', ');
+  const problems = list.map((it, i) => est[i].error ? `${it.name}: ${est[i].error}` : null).filter(Boolean);
+  const after = state.settings.AfterPrint !== 'Nothing' && state.settings.AfterPrintFolder
+    ? ` Afterwards the PDFs are ${state.settings.AfterPrint === 'MoveTo' ? 'moved' : 'copied'} to ${state.settings.AfterPrintFolder}.` : '';
+  const detail = `About ${plural(sheets, 'sheet')} ${where}.${n > 1 ? ` The whole list ${n} times, one set after another.` : ''}${after}`;
+  const go = (await askChoice(`Print ${plural(list.length, 'file')}${n > 1 ? `, ${n} times` : ''}?`, [['Cancel', 'outline'], ['Print', 'primary']], {
+    detail, html: problems.length ? `<p class="detail">These files will stop with an error:</p><ul class="problems">${problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''
+  })) === 1;
   if (!go) return;
   for (const it of list) { it.status = 'wait'; it.message = ''; }
   state.printing = { paused: false, ids: new Set(list.map(it => it.id)), fraction: 0, text: 'Starting…' };
@@ -1081,6 +1058,29 @@ async function printCmd() {
     state.printing = null; setPrintingUi();
     toast('Printing could not start: ' + e.message, true);
   }
+}
+/** File › After Printing…: leave the printed PDFs, or move / copy them to a folder (for every print run). */
+function openAfterPrint() {
+  if (state.printing) return;
+  const { box, close } = openBox('wide', `<h2>After printing</h2><p class="detail">What happens to each PDF once it has printed (after its last set, with Repeat).</p>
+    <div class="field"><div class="row2" style="grid-template-columns:150px 1fr">
+      <select id="apAct"><option value="Nothing">Do nothing</option><option value="MoveTo">Move PDFs to</option><option value="CopyTo">Copy PDFs to</option></select>
+      <div style="display:flex;gap:6px"><input type="text" id="apDir" placeholder="Folder" value="${esc(state.settings.AfterPrintFolder)}" style="flex:1"><button class="tbtn" id="apPick" type="button">…</button></div></div></div>
+    <div class="acts"><button class="btn outline" data-r="0">Cancel</button><button class="btn primary" data-r="1">OK</button></div>`);
+  const act = box.querySelector('#apAct'), dir = box.querySelector('#apDir');
+  act.value = state.settings.AfterPrint;
+  const sync = () => { dir.disabled = box.querySelector('#apPick').disabled = act.value === 'Nothing'; };
+  act.addEventListener('change', sync); sync();
+  box.querySelector('#apPick').onclick = async () => { const p = await desk?.pickFolder('Folder for printed PDFs'); if (p) dir.value = p; };
+  box.addEventListener('click', e => {
+    const b = e.target.closest('[data-r]'); if (!b) return;
+    if (b.dataset.r === '1') {
+      if (act.value !== 'Nothing' && !dir.value.trim()) { toast('Choose the folder for the printed PDFs, or pick Do nothing.', true); return; }
+      state.settings.AfterPrint = act.value; state.settings.AfterPrintFolder = dir.value.trim(); saveSettings();
+    }
+    close();
+  });
+  act.focus();
 }
 function setPrintingUi() {
   const p = state.printing;
@@ -1520,7 +1520,7 @@ resizer('#toolsResizer', '--tools-w', 'sievphov-tools-w', 300, 520, x => innerWi
 
 /* ================================================================== keys and menu commands */
 const COMMANDS = {
-  addFiles: addFilesCmd, addFolder: addFolderCmd, openJob: openJobCmd, saveJob: () => saveJob(false), saveJobAs: () => saveJob(true), print: printCmd,
+  addFiles: addFilesCmd, addFolder: addFolderCmd, openJob: openJobCmd, saveJob: () => saveJob(false), saveJobAs: () => saveJob(true), print: printCmd, afterPrint: openAfterPrint,
   selectAll: () => selectOnly(state.items.map(it => it.id)), remove: () => removeItems(selected()),
   removePrinted: () => removeItems(state.items.filter(it => it.status === 'printed')), clear: clearList,
   up: () => moveSelected(-1), down: () => moveSelected(1), copySettings, pasteSettings,

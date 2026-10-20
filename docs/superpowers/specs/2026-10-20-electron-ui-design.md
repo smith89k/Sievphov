@@ -109,3 +109,7 @@ to see how their file look when printed". So:
   file's last set only (a move after set 1 would lose the file for set 2); between sets a file says "1 of 3 sets
   printed"; the report has one row per file (pages and sheets of all sets, `Sets`, message "3 sets"). Saved in the job
   as `Repeat` (only when > 1, so version 1 files are unchanged); `M.jobRepeat(data)` reads it.
+- "click print just show confirm window … keep it clean since repeat is already set from the outside": the Print box is
+  now only the app's question box (`askChoice`): "Print 2 files, 3 times?", "About 9 sheets on HP LaserJet Pro 4303. The
+  whole list 3 times, one set after another." (+ where the PDFs go afterwards, + files that will stop with an error),
+  Cancel / Print. No Repeat field and no estimate table in it; After printing moved to File › After Printing….

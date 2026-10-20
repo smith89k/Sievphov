@@ -110,6 +110,7 @@ function buildMenu() {
       k('Save Job &As…', 'Ctrl+Shift+S', 'saveJobAs'),
       { type: 'separator' },
       k('&Print…', 'Ctrl+P', 'print'),
+      k('After Printin&g…', undefined, 'afterPrint'),
       { type: 'separator' },
       { label: 'E&xit', accelerator: 'Alt+F4', click: () => win && win.close() }
     ]},
