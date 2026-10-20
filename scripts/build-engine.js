@@ -52,7 +52,9 @@ try {
   fs.rmSync(out, { recursive: true, force: true });
   run(['publish', project, '-p:PublishProfile=win-x64', '-o', out]);
 } catch {
-  console.error('\nengine: building the print engine failed (see the messages above). Run "pnpm run engine" to try again.\n');
+  console.error('\nengine: building the print engine failed (see the messages above). Run "pnpm run engine" to try again.\n' +
+    '        "NU1100 Unable to resolve" means NuGet could not download packages: check the internet connection\n' +
+    '        (and a proxy, if this PC uses one). The packages come from nuget.org (engine/nuget.config).\n');
   stop();
 }
 if (!fs.existsSync(exe)) { console.error('engine: ' + exe + ' was not made'); stop(); }
