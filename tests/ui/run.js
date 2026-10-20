@@ -1,5 +1,5 @@
 // Drives the real Sievphov window with the stand-in engine (nothing is printed) and saves screenshots:
-//   pnpm run test:ui            (Linux: xvfb-run -a pnpm run test:ui)
+//   pnpm run test:ui            (Linux: xvfb-run -a -s "-screen 0 1600x1000x24" pnpm run test:ui — the window is 1440 × 900)
 // SIEVPHOV_SHOTS=<folder> says where the pictures go (default: %TEMP%/sievphov-shots). Exit code 0 = every check passed.
 process.env.SIEVPHOV_FAKE_ENGINE = '1';
 process.env.SIEVPHOV_TEST = '1';
@@ -109,25 +109,42 @@ app.whenReady().then(async () => {
     await sleep(200);
     check(await js(`document.querySelector('.copies-row input').placeholder`) === 'Mixed', 'two files with different copies show Mixed');
 
-    // preview of the booklet
+    // preview: every ticked file with its preset, every sheet drawn
     await pickRow(0);
     await key('F5');
-    await waitFor(() => js(`!!document.querySelector('.modal.preview img')`), 'preview image');
-    check((await js(`document.getElementById('pvInfo').textContent`)).includes('Sheet 1, front · pages 120 | 1'), 'booklet sheet 1 front = pages 120 | 1');
+    await waitFor(() => js(`document.querySelectorAll('.modal.preview .pv-group').length === 4`), 'preview groups');
+    check(await js(`document.querySelectorAll('#pvFiles .pv-file').length`) === 4, 'preview lists the 4 ticked files that can be read');
+    check(await js(`[...document.querySelectorAll('.pv-group .pv-preset')].map(s => s.selectedOptions[0].textContent.trim()).join('|')`) === 'Book – booklet 2-sided *|Book – booklet 2-sided|Normal – 1 side|Normal – 1 side', 'each file shows its own preset (* = changed by hand)');
+    check(await js(`document.querySelectorAll('.pv-group')[0].querySelectorAll('.pv-sheet').length`) === 30, 'a 120-page booklet shows 30 sheets, front and back side by side');
+    await waitFor(() => js(`/front 120 \\| 1 · back 2 \\| 119/.test(document.querySelector('.pv-group .pv-sheet figcaption').textContent)`), 'booklet sheet 1 drawn');
+    check(true, 'booklet sheet 1: front 120 | 1, back 2 | 119');
+    await waitFor(() => js(`document.querySelectorAll('.pv-group')[0].querySelectorAll('.pv-side img').length >= 6`), 'more sheets drawn');
     await shot('05-preview');
+    await js(`(() => { const s = document.querySelectorAll('.pv-group .pv-preset')[2]; s.value = [...s.options].find(o => o.textContent.startsWith('Both sides')).value; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await waitFor(() => js(`(document.querySelectorAll('.pv-group')[2].querySelector('.pv-gh small')?.textContent || '').includes('2-sided')`), 'preset changed in preview');
+    check((await rowText(2)).includes('Both sides (long edge)'), 'a preset picked in the preview is given to the file');
+    await js(`document.querySelectorAll('.pv-group')[2].scrollIntoView()`);
+    await waitFor(() => js(`!!document.querySelectorAll('.pv-group')[2].querySelector('.pv-side img')`), 'invoice drawn');
+    await shot('05a-preview-invoice');
+    await js(`document.querySelector('.pv-group .pv-side').click()`);
+    await waitFor(() => js(`!!document.querySelector('#pvStage img')`), 'one sheet');
+    check((await js(`document.getElementById('pvInfo').textContent`)).includes('sheet 1, front · pages 120 | 1'), 'click a sheet: it shows large');
+    await shot('05b-preview-one-sheet');
     await key('Right');
     await waitFor(() => js(`document.getElementById('pvInfo').textContent.includes('back')`), 'back side');
-    check((await js(`document.getElementById('pvInfo').textContent`)).includes('pages 2 | 119'), 'booklet sheet 1 back = pages 2 | 119');
+    check((await js(`document.getElementById('pvInfo').textContent`)).includes('pages 2 | 119'), '→ goes to the back: pages 2 | 119');
     await key('Escape');
+    check(await js(`!!document.querySelector('.modal.preview') && !document.getElementById('pvAll').hidden`), 'Esc goes back to all sheets');
+    await key('Escape');
+    check(await js(`!document.querySelector('.modal.preview')`), 'Esc again closes the preview');
 
-    // the Bohpum layout: menu words in the title row, the Presets panel on the left
+    // the Bohpum title row; presets at the top of the panel on the right, as before
     check(await js(`[...document.querySelectorAll('#menus .menu-btn')].map(b => b.textContent).join(',')`) === 'File,Edit,Presets,View,Help', 'title row has the menu words File Edit Presets View Help');
-    check(await js(`document.querySelectorAll('#presetList .preset').length`) === 3 && await js(`document.getElementById('presetCount').textContent`) === '3', 'Presets panel lists the 3 presets with a count');
+    check(await js(`document.querySelectorAll('#tools #presetSel option').length`) === 3, 'the Presets section in the panel lists the 3 presets');
     await pickRow(3);
-    await js(`document.querySelectorAll('#presetList .preset')[1].dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`);
+    await js(`(() => { const s = document.getElementById('presetSel'); s.value = s.options[1].value; s.dispatchEvent(new Event('change', { bubbles: true })); document.getElementById('pApply').click(); })()`);
     await sleep(250);
-    check((await rowText(3)).includes('Both sides (long edge)') && (await rowText(3)).includes('2-sided'), 'double-clicking a preset applies it to the selected file');
-    await shot('05b-presets-panel');
+    check((await rowText(3)).includes('Both sides (long edge)') && (await rowText(3)).includes('2-sided'), 'Apply to selected gives the chosen preset to the selected file');
 
     // manage presets
     await click('#pManage');

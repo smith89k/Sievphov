@@ -180,11 +180,12 @@ function statusOf(it) {
   const text = it.status === 'printing' && it.message ? it.message : STATUS_WORD[it.status];
   return { cls: it.status, text, tip: it.message || text };
 }
+const presetChip = it => it.presetName != null
+  ? `<span class="chip preset-chip" title="${esc(it.presetName + (it.modified ? ' — changed by hand' : ''))}"><span class="cl">${esc(it.presetName)}</span>${it.modified ? '<span class="star">*</span>' : ''}</span>`
+  : `<span class="chip own"><span class="cl">${esc(M.presetLabel(it))}</span></span>`;
 function rowHtml(it, i) {
   const s = it.settings, st = statusOf(it);
-  const chip = it.presetName != null
-    ? `<span class="chip preset-chip" title="${esc(it.presetName + (it.modified ? ' — changed by hand' : ''))}"><span class="cl">${esc(it.presetName)}</span>${it.modified ? '<span class="star">*</span>' : ''}</span>`
-    : `<span class="chip own"><span class="cl">${esc(M.presetLabel(it))}</span></span>`;
+  const chip = presetChip(it);
   return `<div class="row${state.sel.has(it.id) ? ' sel' : ''}${it.checked ? '' : ' off'}" data-id="${it.id}" draggable="true" role="option" aria-selected="${state.sel.has(it.id)}" title="${esc(it.path)}">
     <span class="center"><input type="checkbox" class="tick" ${it.checked ? 'checked' : ''} ${it.pageCount ? '' : 'disabled'} aria-label="Print this file"></span>
     <span class="num">${i + 1}</span>
@@ -775,61 +776,32 @@ function buildEditor(root, ctx, { sections = SECTIONS, folded = true } = {}) {
 
 /* ---------- the panel: presets on top, then the selected files' settings ---------- */
 let editor = null;
-/** The Presets panel (left, like Bohpum's Pages panel): click picks, double-click applies to the selected files. */
-function renderPresets() {
-  if (!state.presetPick || !M.findPreset(state.lib, state.presetPick.Id)) state.presetPick = M.defaultPreset(state.lib) || state.lib.Presets[0] || null;
-  const list = $('#presetList'), n = state.sel.size;
-  const uses = id => state.items.filter(it => it.presetId === id).length;
-  $('#presetCount').textContent = state.lib.Presets.length;
-  list.innerHTML = state.lib.Presets.map((p, i) => {
-    const u = uses(p.Id);
-    return `<div class="preset${state.presetPick && p.Id === state.presetPick.Id ? ' on' : ''}" data-id="${esc(p.Id)}" role="option" tabindex="0" aria-selected="${state.presetPick?.Id === p.Id}" title="Double-click to apply to the selected files">
-      <b class="pn">${esc(p.Name)}</b>
-      <small>${esc(describe(p.Settings))}</small>
-      <div class="pt">${p.Id === state.lib.DefaultPresetId ? '<span class="def" title="Given to files you add">Default</span>' : ''}${u ? `<span class="uses">${plural(u, 'file')}</span>` : ''}${i < 9 ? `<span class="kb">Ctrl+${i + 1}</span>` : ''}</div></div>`;
-  }).join('') || '<p class="empty-props">No presets yet. Select a file and click + to save its settings as a preset.</p>';
-  const ap = $('#pApply');
-  ap.disabled = !n || !state.presetPick || !!state.printing;
-  ap.querySelector('span').textContent = n > 1 ? `Apply to ${n} files` : 'Apply to selected';
-  $('#pNew').disabled = n !== 1 || !!state.printing;
-  $('#pManage').disabled = !!state.printing;
+function presetOpts() {
+  return state.lib.Presets.map((p, i) => ({ v: p.Id, t: p.Name, s: (p.Id === state.lib.DefaultPresetId ? 'Default · ' : '') + (i < 9 ? `Ctrl+${i + 1} · ` : '') + describe(p.Settings), ic: 'stack' }));
 }
-const presetAt = e => M.findPreset(state.lib, e.target.closest('.preset')?.dataset.id);
-$('#presetList').addEventListener('click', e => { const p = presetAt(e); if (p) { state.presetPick = p; renderPresets(); } });
-$('#presetList').addEventListener('dblclick', e => { const p = presetAt(e); if (p) applyPresetCmd(p); });
-$('#presetList').addEventListener('keydown', e => {
-  const p = presetAt(e); if (!p) return;
-  if (e.key === 'Enter') { e.preventDefault(); applyPresetCmd(p); }
-  if (e.key === ' ') { e.preventDefault(); state.presetPick = p; renderPresets(); $(`.preset[data-id="${p.Id}"]`)?.focus(); }
+/** The Presets section at the top of the panel: pick a preset, apply it to the selected files, save / update / manage. */
+function renderPresets() {
+  const box = $('#presetBox');
+  if (!state.presetPick || !M.findPreset(state.lib, state.presetPick.Id)) state.presetPick = M.defaultPreset(state.lib) || state.lib.Presets[0] || null;
+  const opts = presetOpts(), n = state.sel.size, idle = !state.printing;
+  box.innerHTML = `<div class="field"><select class="big" id="presetSel" aria-label="Preset"><button><selectedcontent></selectedcontent></button>${opts.map(o => `<option value="${esc(o.v)}"><span class="ic">${svg(o.ic)}</span><span class="t"><b>${esc(o.t)}</b><small>${esc(o.s)}</small></span></option>`).join('')}</select></div>
+    <div class="grid2">
+      <button class="tbtn primary" id="pApply" ${n && state.presetPick && idle ? '' : 'disabled'}>${svg('check')}<span>${n > 1 ? `Apply to ${n} files` : 'Apply to selected'}</span></button>
+      <button class="tbtn" id="pManage" ${idle ? '' : 'disabled'}>${svg('edit')}<span>Manage presets…</span></button>
+      <button class="tbtn" id="pSaveAs" ${n === 1 && idle ? '' : 'disabled'} title="Save the selected file's settings as a new preset">${svg('plus')}<span>Save as preset…</span></button>
+      <button class="tbtn" id="pUpdate" ${n === 1 && state.presetPick && idle ? '' : 'disabled'} title="Give the chosen preset the selected file's settings">${svg('save')}<span>Update preset</span></button>
+    </div>`;
+  const sel = box.querySelector('#presetSel');
+  if (state.presetPick) sel.value = state.presetPick.Id;
+  sel.addEventListener('change', () => { state.presetPick = M.findPreset(state.lib, sel.value); renderPresets(); });
+  box.querySelector('#pApply').onclick = () => state.presetPick && applyPresetCmd(state.presetPick);
+  box.querySelector('#pManage').onclick = () => openPresetManager();
+  box.querySelector('#pSaveAs').onclick = saveAsPresetCmd;
+  box.querySelector('#pUpdate').onclick = updatePresetCmd;
+}
+document.querySelector('.tsec[data-sec="presets"] .tsec-head').addEventListener('click', e => {
+  const sec = e.currentTarget.closest('.tsec'); sec.classList.toggle('folded'); e.currentTarget.setAttribute('aria-expanded', !sec.classList.contains('folded'));
 });
-$('#presetList').addEventListener('contextmenu', e => {
-  const p = presetAt(e); if (!p) return;
-  e.preventDefault();
-  state.presetPick = p; renderPresets();
-  const idle = !state.printing, i = state.lib.Presets.indexOf(p);
-  openMenu(e.clientX, e.clientY, [
-    { label: state.sel.size > 1 ? `Apply to ${state.sel.size} files` : 'Apply to selected files', kb: i < 9 ? `Ctrl+${i + 1}` : '', icon: 'check', disabled: !idle || !state.sel.size, run: () => applyPresetCmd(p) },
-    { label: 'Update from the selected file', icon: 'save', disabled: !idle || state.sel.size !== 1, run: updatePresetCmd },
-    '-',
-    { label: 'Edit…', icon: 'edit', disabled: !idle, run: () => openPresetManager(p.Id) },
-    { label: 'Rename…', icon: 'text', disabled: !idle, run: async () => {
-      const a = await askText('Rename preset', 'New name:', { value: p.Name, ok: 'Rename' }); if (!a) return;
-      p.Name = M.uniqueName(state.lib, a.text, p); await savePresets(); M.libraryChanged(state.items, state.lib); refresh(); renderPresets(); } },
-    { label: 'Duplicate', icon: 'copy', disabled: !idle, run: async () => {
-      const c = { Id: M.newId(), Name: M.uniqueName(state.lib, p.Name + ' copy'), Settings: M.clone(p.Settings) };
-      state.lib.Presets.splice(i + 1, 0, c); state.presetPick = c; await savePresets(); renderPresets(); } },
-    { label: 'Set as default', icon: 'star', disabled: !idle || p.Id === state.lib.DefaultPresetId, run: async () => { state.lib.DefaultPresetId = p.Id; await savePresets(); renderPresets(); toast(`"${p.Name}" is given to files you add.`); } },
-    '-',
-    { label: 'Delete', icon: 'trash', disabled: !idle, run: async () => {
-      if (!(await askConfirm(`Delete the preset "${p.Name}"?`, 'Delete', 'Files that use it keep their settings.'))) return;
-      state.lib.Presets.splice(i, 1);
-      if (state.lib.DefaultPresetId === p.Id) state.lib.DefaultPresetId = state.lib.Presets[0]?.Id ?? null;
-      await savePresets(); M.libraryChanged(state.items, state.lib); refresh(); buildPanel(); } }
-  ]);
-});
-$('#pApply').onclick = () => state.presetPick && applyPresetCmd(state.presetPick);
-$('#pNew').onclick = saveAsPresetCmd;
-$('#pManage').onclick = () => openPresetManager();
 function buildPanel() {
   renderPresets();
   const box = $('#settingsBox');
@@ -1123,75 +1095,227 @@ $('#bStop').onclick = async () => {
   if (await askConfirm('Stop printing?', 'Stop', 'The file printing now is cancelled; the others are not sent.')) await eng('stop').catch(() => {});
 };
 
-/* ================================================================== preview: fills the window, like a Print screen */
+/* ================================================================== preview: fills the window, like a Print screen.
+   All sheets: every file that will print, one after the other, each with its preset and every sheet side drawn by the
+   engine as it will print (drawn when scrolled into view). Click a sheet: that sheet large, ‹ › go on across files. */
 function openPreview(start) {
-  const pool = state.items.filter(it => it.pageCount > 0);
-  let it = start && start.pageCount > 0 ? start : selected().find(x => x.pageCount > 0) || pool[0];
-  if (!it) { toast('Add a PDF file that can be read first.'); return; }
-  let side = 0, sides = 1, seq = 0, zoomed = false, sheetIn = null;
-  // fitted: the whole sheet in the stage; zoomed: actual size (96 px an inch), scroll to move around
+  const readable = state.items.filter(it => it.pageCount > 0 && it.status !== 'locked');
+  let pool = ticked();
+  const onlyTicked = pool.length > 0 && (!start || pool.includes(start));
+  if (!onlyTicked) pool = readable;
+  if (!pool.length) { toast('Add a PDF file that can be read first.'); return; }
+  const SIZES = [160, 220, 300, 420];
+  const savedSize = lsGet('sievphov-pv-size');
+  let size = savedSize != null && SIZES[+savedSize] ? +savedSize : 1;
+  let one = null, zoomed = false, sheetIn = null, seq = 0;   // one = { it, side } while a single sheet is shown
+  const sidesOf = new Map();                                  // item id → sides per copy (from the estimate)
+  const cache = new Map();                                    // "id:side:px" → engine reply
+  const { box, close } = openBox('preview', `<div class="head"><h2>Preview</h2><span class="hint">${onlyTicked ? 'The ticked files' : 'All files'}, every sheet as it will print, each with its own preset, printer and paper</span>
+      <span class="pv-tools"><span class="seg" role="group" aria-label="Show"><button class="btn on" id="pvAllBtn">${svg('pages')}<span>All sheets</span></button><button class="btn" id="pvOneBtn">${svg('doc')}<span>One sheet</span></button></span>
+      <label class="pv-size" title="Size of the sheets">${svg('eye')}<input type="range" id="pvSize" min="0" max="${SIZES.length - 1}" step="1" value="${size}" aria-label="Sheet size"></label></span></div>
+    <div class="side"><h4>Files <span class="count">${pool.length}</span></h4><div class="pv-files" id="pvFiles"></div>
+      <p class="hint">${onlyTicked ? 'Only the ticked files are shown: they are what Print sends.' : 'No file is ticked, so every file is shown.'} Pick another preset for a file above its sheets to see how it would print. The dashed line is the edge the printer can reach.</p></div>
+    <div class="view"><div class="pv-all" id="pvAll" tabindex="0"></div>
+      <div class="pv-one" id="pvOne" hidden><div class="info" id="pvInfo"></div><div class="stage" id="pvStage"><span class="none">Drawing…</span></div>
+        <div class="nav"><button class="btn icon" id="pvPrev" title="Previous side (←)">${svg('left')}</button><span id="pvNum"></span><button class="btn icon" id="pvNext" title="Next side (→)">${svg('right')}</button></div></div></div>
+    <div class="foot"><span class="note" id="pvNote"></span><button class="btn primary" data-close>Close</button></div>`,
+  { full: true, onCancel: () => (one ? showAll() : close()) });
+  const all = box.querySelector('#pvAll'), stage = box.querySelector('#pvStage'), filesEl = box.querySelector('#pvFiles');
+  const q = s => box.querySelector(s);
+
+  // ---- what each file prints: sides per copy, from one estimate for all of them
+  async function countSides(list) {
+    const res = await eng('estimate', { items: list.map(it => ({ settings: it.settings, pageCount: it.pageCount })) }).catch(() => null);
+    list.forEach((it, i) => sidesOf.set(it.id, res?.[i] ?? { sides: 0, sheets: 0, pagesPrinted: 0, error: 'Could not count the sheets' }));
+  }
+  const guessLandscape = it => {
+    const s = it.settings, p = it.pageSizes?.[0] || [595, 842];
+    return s.Layout === 'Booklet' || s.Orientation === 'Landscape' ||
+      (s.Orientation !== 'Portrait' && (s.Layout === 'PagesPerSheet' ? s.Columns > s.Rows : p[0] > p[1]));
+  };
+  const factLine = it => {
+    const s = it.settings, e = sidesOf.get(it.id) || {};
+    const prints = e.error ? e.error : `${plural(e.sheets || 0, 'sheet')} · ${plural(e.pagesPrinted || 0, 'page')}${s.Copies > 1 ? ` (${plural(s.Copies, 'copy', 'copies')})` : ''}`;
+    return [printerOf(s), trayText(s), s.PaperSize || 'Printer paper', sidesText(s), prints];
+  };
+  const presetSelect = it => `<select class="pv-preset" aria-label="Preset of ${esc(it.name)}" title="Pick a preset to see how this file would print with it">
+      ${it.presetName == null ? `<option value="" selected>${esc(M.presetLabel(it))}</option>` : ''}
+      ${state.lib.Presets.map(p => `<option value="${esc(p.Id)}"${p.Id === it.presetId ? ' selected' : ''}>${esc(p.Name)}${p.Id === it.presetId && it.modified ? ' *' : ''}</option>`).join('')}</select>`;
+
+  // ---- the left column: one card per file
+  function drawFiles() {
+    filesEl.innerHTML = pool.map((it, i) => { const f = factLine(it); return `<button class="pv-file" data-id="${it.id}" title="${esc(it.path)}">
+      <span class="n">${i + 1}</span><span class="t"><b>${esc(it.name)}</b>${presetChip(it)}<small>${esc(f.slice(0, 4).join(' · '))}</small><small class="pr">${esc(f[4])}</small></span></button>`; }).join('');
+    markCurrentFile();
+  }
+  filesEl.addEventListener('click', e => {
+    const it = byId(e.target.closest('.pv-file')?.dataset.id); if (!it) return;
+    if (one) { one = { it, side: 0 }; drawOne(); } else all.querySelector(`.pv-group[data-id="${it.id}"]`)?.scrollIntoView({ block: 'start' });
+  });
+  function markCurrentFile() {
+    let id = one?.it.id;
+    if (!id) { const top = all.getBoundingClientRect().top + 8; id = [...all.querySelectorAll('.pv-group')].find(g => g.getBoundingClientRect().bottom > top + 90)?.dataset.id; }
+    filesEl.querySelectorAll('.pv-file').forEach(b => b.classList.toggle('on', b.dataset.id === id));
+  }
+
+  // ---- all sheets: a group per file; two-sided files show front and back side by side
+  const observer = new IntersectionObserver(es => { for (const e of es) { e.target.classList.toggle('near', e.isIntersecting); if (e.isIntersecting) want(e.target); } }, { root: all, rootMargin: '600px 0px' });
+  function groupHtml(it, i) {
+    const n = sidesOf.get(it.id)?.sides || 0, two = M.isTwoSided(it.settings), land = guessLandscape(it), f = factLine(it);
+    let sheets = '';
+    for (let k = 0; k < n; k += two ? 2 : 1) {
+      const side = (j, what) => `<span class="pv-side${land ? ' land' : ''}" data-side="${j}" title="${what} — click to see it large"><span class="none">${j + 1}</span></span>`;
+      sheets += `<figure class="pv-sheet"><div class="pv-pair">${side(k, two ? 'Front' : 'Sheet')}${two && k + 1 < n ? side(k + 1, 'Back') : ''}</div><figcaption>Sheet ${two ? k / 2 + 1 : k + 1}</figcaption></figure>`;
+    }
+    return `<section class="pv-group" data-id="${it.id}"><div class="pv-gh"><span class="n">${i + 1}</span><span class="t"><b>${esc(it.name)}</b><small>${esc(f.join(' · '))}</small></span>
+      <label class="pv-pl"><span>Preset</span>${presetSelect(it)}</label></div>
+      <div class="pv-sheets">${sheets || `<p class="none">${esc(sidesOf.get(it.id)?.error || 'Nothing to print — check the pages.')}</p>`}</div></section>`;
+  }
+  function drawAll() {
+    observer.disconnect();
+    all.style.setProperty('--pv-h', SIZES[size] + 'px');
+    all.innerHTML = pool.map(groupHtml).join('');
+    all.querySelectorAll('.pv-side').forEach(el => observer.observe(el));
+    markCurrentFile(); note();
+  }
+  function redrawGroup(it) {
+    const g = all.querySelector(`.pv-group[data-id="${it.id}"]`); if (!g) return;
+    g.querySelectorAll('.pv-side').forEach(el => observer.unobserve(el));
+    g.outerHTML = groupHtml(it, pool.indexOf(it));
+    all.querySelectorAll(`.pv-group[data-id="${it.id}"] .pv-side`).forEach(el => observer.observe(el));
+  }
+  all.addEventListener('change', async e => {
+    const sel = e.target.closest('.pv-preset'), it = byId(sel?.closest('.pv-group')?.dataset.id); if (!it) return;
+    if (state.printing) { toast('Settings can be changed again when printing has finished.'); redrawGroup(it); return; }
+    const p = M.findPreset(state.lib, sel.value); if (!p) return;
+    M.applyPreset([it], p);
+    markDirty(); refresh();
+    for (const k of [...cache.keys()]) if (k.startsWith(it.id + ':')) cache.delete(k);
+    await countSides([it]);
+    redrawGroup(it); drawFiles(); note();
+    toast(`"${p.Name}" given to ${it.name}.`);
+  });
+  all.addEventListener('click', e => {
+    const el = e.target.closest('.pv-side'), it = byId(el?.closest('.pv-group')?.dataset.id); if (!it) return;
+    one = { it, side: +el.dataset.side }; drawOne();
+  });
+  all.addEventListener('scroll', () => requestAnimationFrame(markCurrentFile), { passive: true });
+
+  // the engine draws one side at a time; the ones on screen go first, in reading order
+  const waiting = new Set(); let working = false;
+  const pxFor = () => { const h = SIZES[size] * 1.42 * (window.devicePixelRatio || 1); return h <= 340 ? 340 : h <= 520 ? 520 : 760; };
+  function want(el) { if (!el.dataset.done) { waiting.add(el); pump(); } }
+  async function pump() {
+    if (working) return;
+    working = true;
+    try {
+      while (document.body.contains(box)) {
+        const el = [...waiting].find(x => x.classList.contains('near') && x.isConnected);
+        [...waiting].forEach(x => { if (!x.isConnected || x.dataset.done) waiting.delete(x); });
+        if (!el) break;
+        waiting.delete(el);
+        const it = byId(el.closest('.pv-group')?.dataset.id); if (!it) continue;
+        const r = await sideImage(it, +el.dataset.side, pxFor()).catch(e => ({ error: e.message }));
+        if (!el.isConnected) continue;
+        el.dataset.done = '1';
+        if (r.error) { el.innerHTML = `<span class="none bad" title="${esc(r.error)}">!</span>`; continue; }
+        el.classList.toggle('land', r.widthIn > r.heightIn);
+        el.style.aspectRatio = `${r.widthIn} / ${r.heightIn}`;
+        el.innerHTML = `<img alt="" src="${srcOf(r)}">`;
+        el.title = `${r.twoSided ? (r.isBack ? 'Back' : 'Front') : 'Sheet ' + r.sheet} · ${pagesOf(r)} — click to see it large`;
+        el.dataset.pages = r.slots.map(p => p ?? 'blank').join(' | ');
+        const fig = el.closest('.pv-sheet'), [f, b] = fig.querySelectorAll('.pv-side');
+        fig.querySelector('figcaption').textContent = `Sheet ${r.sheet} · ` + (b || r.twoSided
+          ? `front ${f.dataset.pages || '…'}${b ? ` · back ${b.dataset.pages || '…'}` : ''}`
+          : `page${r.slots.length > 1 ? 's' : ''} ${el.dataset.pages}`);
+      }
+    } finally { working = false; }
+  }
+  const srcOf = r => r.png ? 'data:image/png;base64,' + r.png : 'data:image/svg+xml;base64,' + r.svg;
+  const pagesOf = r => `page${r.slots.length > 1 ? 's' : ''} ${r.slots.map(p => p ?? 'blank').join(' | ')}`;
+  async function sideImage(it, side, px) {
+    const key = `${it.id}:${side}:${px}`;
+    if (!cache.has(key)) cache.set(key, await eng('preview', { item: engItem(it), side, maxPx: px }));
+    return cache.get(key);
+  }
+
+  // ---- one sheet large, ‹ › go on into the next file
   function fitImg() {
     const img = stage.querySelector('img'); if (!img || !sheetIn) return;
     const cs = getComputedStyle(stage), aw = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), ah = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
     const k = zoomed ? 96 : Math.min(aw / sheetIn.w, ah / sheetIn.h);
     img.style.width = Math.max(1, Math.floor(sheetIn.w * k)) + 'px'; img.style.height = Math.max(1, Math.floor(sheetIn.h * k)) + 'px';
   }
-  const { box, close } = openBox('preview', `<div class="head"><h2>Preview</h2><span class="hint" style="color:var(--muted);font-size:12px">Each sheet exactly as it will print, on the file's printer and paper</span></div>
-    <div class="side"><div class="field"><span class="flabel">File</span><select class="big" id="pvFile"><button><selectedcontent></selectedcontent></button>${pool.map(x => `<option value="${x.id}"><span class="ic">${svg('doc')}</span><span class="t"><b>${esc(x.name)}</b><small>${esc(describe(x.settings))}</small></span></option>`).join('')}</select></div>
-      <h4>This file prints</h4><dl class="facts" id="pvFacts"></dl>
-      <p class="hint">The dashed line is the edge the printer can reach. Change settings in the panel on the right after closing; the preview shows them next time.</p></div>
-    <div class="view"><div class="info" id="pvInfo"></div><div class="stage" id="pvStage"><span class="none">Drawing…</span></div>
-      <div class="nav"><button class="btn icon" id="pvPrev" title="Previous side (←)">${svg('left')}</button><span id="pvNum"></span><button class="btn icon" id="pvNext" title="Next side (→)">${svg('right')}</button></div></div>
-    <div class="foot"><span class="note">← → or PgUp / PgDn: other sides · click the sheet: actual size</span><button class="btn primary" data-close>Close</button></div>`, { full: true });
-  const stage = box.querySelector('#pvStage'), sel = box.querySelector('#pvFile');
-  sel.value = it.id;
-  sel.addEventListener('change', () => { it = byId(sel.value); side = 0; draw(); });
-  function facts() {
-    const s = it.settings, e = state.est.get(it.id) || {};
-    const rows = [['Printer', s.PrinterName || `Default (${defaultPrinter() || 'Windows'})`], ['Tray', trayText(s)], ['Paper', s.PaperSize || 'Printer default'], ['Sides', sidesText(s)],
-      ['Pages', s.Pages === 'Range' ? s.PageRange : s.Pages === 'All' ? `All ${it.pageCount}` : s.Pages], ['Copies', s.Copies], ['Prints', e.error ? e.error : `${plural(e.pagesPrinted || 0, 'page')} · ${plural(e.sheets || 0, 'sheet')}`]];
-    box.querySelector('#pvFacts').innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd title="${esc(v)}">${esc(v)}</dd>`).join('');
+  function setMode() {
+    q('#pvAll').hidden = !!one; q('#pvOne').hidden = !one;
+    q('#pvAllBtn').classList.toggle('on', !one); q('#pvOneBtn').classList.toggle('on', !!one);
+    q('#pvSize').closest('label').hidden = !!one;
+    markCurrentFile(); note();
   }
-  async function draw() {
-    facts();
-    const my = ++seq;
+  function showAll() {
+    const was = one; one = null; zoomed = false; stage.classList.remove('zoomed'); setMode();
+    if (was) all.querySelector(`.pv-group[data-id="${was.it.id}"] .pv-side[data-side="${was.side}"]`)?.scrollIntoView({ block: 'center' });
+    all.focus({ preventScroll: true });
+  }
+  async function drawOne() {
+    setMode();
+    const { it, side } = one, my = ++seq, n = sidesOf.get(it.id)?.sides || 0, fi = pool.indexOf(it);
+    q('#pvNum').textContent = `${it.name} · side ${side + 1} of ${n}`;
+    q('#pvPrev').disabled = fi === 0 && side === 0; q('#pvNext').disabled = fi === pool.length - 1 && side >= n - 1;
     const px = Math.min(2400, Math.round(Math.max(stage.clientWidth, stage.clientHeight) * (window.devicePixelRatio || 1)));
     try {
-      const r = await eng('preview', { item: engItem(it), side, maxPx: Math.max(600, px) });
-      if (my !== seq) return;
-      side = r.side; sides = r.sides;
-      const src = r.png ? 'data:image/png;base64,' + r.png : 'data:image/svg+xml;base64,' + r.svg;
-      stage.innerHTML = `<img alt="Sheet preview" src="${src}">`;
+      const r = await sideImage(it, side, Math.max(600, Math.round(px / 200) * 200));
+      if (my !== seq || !one) return;
+      stage.innerHTML = `<img alt="Sheet preview" src="${srcOf(r)}">`;
       sheetIn = { w: r.widthIn, h: r.heightIn };
       fitImg();
-      const pages = r.slots.map(p => p ?? 'blank').join(' | ');
-      box.querySelector('#pvInfo').textContent = `Sheet ${r.sheet}${r.twoSided ? (r.isBack ? ', back' : ', front') : ''} · page${r.slots.length > 1 ? 's' : ''} ${pages} · ${r.widthIn.toFixed(2)} × ${r.heightIn.toFixed(2)} in`;
-      box.querySelector('#pvNum').textContent = `Side ${side + 1} of ${sides}`;
+      q('#pvInfo').textContent = `${it.name} · ${M.presetLabel(it)}${it.modified && it.presetName != null ? ' *' : ''} · sheet ${r.sheet}${r.twoSided ? (r.isBack ? ', back' : ', front') : ''} · ${pagesOf(r)} · ${r.widthIn.toFixed(2)} × ${r.heightIn.toFixed(2)} in`;
     } catch (e) {
       if (my !== seq) return;
-      stage.innerHTML = `<span class="none">${esc(e.message)}</span>`;
-      box.querySelector('#pvInfo').textContent = ''; box.querySelector('#pvNum').textContent = '';
+      stage.innerHTML = `<span class="none">${esc(e.message)}</span>`; q('#pvInfo').textContent = '';
     }
-    box.querySelector('#pvPrev').disabled = side <= 0; box.querySelector('#pvNext').disabled = side >= sides - 1;
   }
-  const go = d => { const n = Math.max(0, Math.min(sides - 1, side + d)); if (n !== side) { side = n; draw(); } };
-  box.querySelector('#pvPrev').onclick = () => go(-1);
-  box.querySelector('#pvNext').onclick = () => go(1);
+  function go(d) {
+    if (!one) return;
+    let fi = pool.indexOf(one.it), side = one.side + d;
+    while (fi >= 0 && fi < pool.length) {
+      const n = sidesOf.get(pool[fi].id)?.sides || 0;
+      if (side >= 0 && side < n) { one = { it: pool[fi], side }; drawOne(); return; }
+      fi += d > 0 ? 1 : -1;
+      if (fi < 0 || fi >= pool.length) return;
+      side = d > 0 ? 0 : (sidesOf.get(pool[fi].id)?.sides || 0) - 1;
+    }
+  }
+  function note() {
+    const sheets = pool.reduce((n, it) => n + (sidesOf.get(it.id)?.sheets || 0), 0);
+    q('#pvNote').textContent = `${plural(pool.length, 'file')} · about ${plural(sheets, 'sheet')} · ` +
+      (one ? '← → or PgUp / PgDn: other sides and files · click the sheet: actual size · Esc: all sheets' : 'click a sheet to see it large');
+  }
+  q('#pvPrev').onclick = () => go(-1);
+  q('#pvNext').onclick = () => go(1);
+  q('#pvAllBtn').onclick = showAll;
+  q('#pvOneBtn').onclick = () => { if (one) return; const g = all.querySelector('.pv-sheet .pv-side.near') || all.querySelector('.pv-side'); const it = byId(g?.closest('.pv-group')?.dataset.id); if (it) { one = { it, side: +g.dataset.side }; drawOne(); } };
+  q('#pvSize').addEventListener('input', e => { size = +e.target.value; lsSet('sievphov-pv-size', size); const top = all.scrollTop / Math.max(1, all.scrollHeight); drawAll(); all.scrollTop = top * all.scrollHeight; });
   stage.addEventListener('click', e => { if (e.target.tagName !== 'IMG') return; zoomed = !zoomed; stage.classList.toggle('zoomed', zoomed); fitImg(); });
   const key = e => {
     if (!document.body.contains(box)) { document.removeEventListener('keydown', key); return; }
-    if (e.target.closest?.('select')) return;
+    if (!one || e.target.closest?.('select')) return;
     if (['ArrowRight', 'PageDown', 'ArrowDown'].includes(e.key)) { e.preventDefault(); go(1); }
     if (['ArrowLeft', 'PageUp', 'ArrowUp'].includes(e.key)) { e.preventDefault(); go(-1); }
-    if (e.key === 'Home') { e.preventDefault(); go(-side); }
-    if (e.key === 'End') { e.preventDefault(); go(sides); }
   };
   document.addEventListener('keydown', key);
-  box.querySelector('[data-close]').onclick = close;
-  let rt = 0; const onResize = () => { clearTimeout(rt); rt = setTimeout(() => document.body.contains(box) ? draw() : window.removeEventListener('resize', onResize), 150); };
+  q('[data-close]').onclick = close;
+  let rt = 0; const onResize = () => { clearTimeout(rt); rt = setTimeout(() => document.body.contains(box) ? (one && fitImg()) : window.removeEventListener('resize', onResize), 150); };
   window.addEventListener('resize', onResize);
-  box.querySelector('[data-close]').focus();
-  requestAnimationFrame(draw);
+
+  all.innerHTML = '<p class="none">Counting the sheets…</p>';
+  countSides(pool).then(() => {
+    if (!document.body.contains(box)) return;
+    drawFiles(); drawAll();
+    if (start && pool.includes(start)) all.querySelector(`.pv-group[data-id="${start.id}"]`)?.scrollIntoView({ block: 'start' });
+    all.focus({ preventScroll: true });
+  });
+  drawFiles();
 }
 
 /* ================================================================== right-click menu (as Sastra PDF's) */
@@ -1351,7 +1475,6 @@ function resizer(id, cssVar, key, min, max, widthAt) {
   });
   r.addEventListener('dblclick', () => { document.documentElement.style.removeProperty(cssVar); try { localStorage.removeItem(key); } catch {} });
 }
-resizer('#presetsResizer', '--presets-w', 'sievphov-presets-w', 170, 380, x => x);
 resizer('#toolsResizer', '--tools-w', 'sievphov-tools-w', 300, 520, x => innerWidth - x);
 
 /* ================================================================== keys and menu commands */

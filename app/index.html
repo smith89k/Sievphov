@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'none'; object-src 'none'">
 <title>Sievphov</title>
-<script>/* saved theme and panel widths before first paint, so nothing flashes or jumps */try{const t=localStorage.getItem('sievphov-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;const p=+localStorage.getItem('sievphov-presets-w');if(p>=170&&p<=380)document.documentElement.style.setProperty('--presets-w',p+'px');const w=+localStorage.getItem('sievphov-tools-w');if(w>=300&&w<=520)document.documentElement.style.setProperty('--tools-w',w+'px')}catch{}</script>
+<script>/* saved theme and panel widths before first paint, so nothing flashes or jumps */try{const t=localStorage.getItem('sievphov-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;const w=+localStorage.getItem('sievphov-tools-w');if(w>=300&&w<=520)document.documentElement.style.setProperty('--tools-w',w+'px')}catch{}</script>
 <link rel="preload" href="fonts/noto-sans-khmer/noto-sans-khmer-khmer-500-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="app.css">
 <link rel="icon" href="logo.png">
 </head>
 <body>
-<!-- Laid out like Bohpum: title row (brand · menu words · job name), toolbar, then Presets | the file list | settings, status bar -->
+<!-- Laid out like Bohpum: title row (brand · menu words · job name), toolbar, then the file list | settings (presets on top), status bar -->
 <header id="titlebar">
   <button class="brand" id="bAbout" title="About Sievphov"><img class="logo" src="logo.png" alt="" draggable="false"><span>Sievphov</span><span class="km" lang="km">សៀវភៅ</span></button>
   <nav id="menus">
@@ -50,21 +50,6 @@
 </header>
 
 <main id="ws">
-  <aside id="presets" aria-label="Presets">
-    <div class="panel-h">
-      <span>Presets <span class="count" id="presetCount">0</span></span>
-      <span class="panel-tools">
-        <button class="btn" id="pNew" title="New preset from the selected file's settings"><svg class="i" data-i="plus"></svg></button>
-        <button class="btn" id="pManage" title="Manage presets…"><svg class="i" data-i="edit"></svg></button>
-      </span>
-    </div>
-    <div id="presetList" role="listbox" aria-label="Presets"></div>
-    <div class="panel-f">
-      <button class="btn primary" id="pApply" title="Give the selected files this preset (double-click a preset, or Ctrl+1 … Ctrl+9)"><svg class="i" data-i="check"></svg><span>Apply to selected</span></button>
-    </div>
-    <div id="presetsResizer" class="resizer right" role="separator" aria-orientation="vertical" aria-label="Resize the Presets panel" title="Drag to resize · double-click for the normal width"></div>
-  </aside>
-
   <section class="list cols" id="list" tabindex="0" aria-label="Files to print">
     <div class="list-head" id="listHead">
       <span class="center"><input type="checkbox" id="tickAll" title="Tick or untick all files" aria-label="Tick all"></span>
@@ -95,7 +80,13 @@
 
   <aside id="tools" aria-label="Settings">
     <div id="toolsResizer" class="resizer left" role="separator" aria-orientation="vertical" aria-label="Resize the settings panel" title="Drag to resize · double-click for the normal width"></div>
-    <div class="tools-scroll" id="toolsScroll"><div id="settingsBox"></div></div>
+    <div class="tools-scroll" id="toolsScroll">
+      <section class="tsec" data-sec="presets">
+        <h3><button class="tsec-head" aria-expanded="true"><svg class="i" data-i="stack"></svg><span>Presets</span><svg class="i chev" data-i="up"></svg></button></h3>
+        <div id="presetBox"></div>
+      </section>
+      <div id="settingsBox"></div>
+    </div>
     <div class="printbar" id="printbar">
       <div class="sum"><span id="sumFiles">No files ticked</span><span id="sumSheets"></span></div>
       <div class="bar" id="runBar" hidden><i></i></div>

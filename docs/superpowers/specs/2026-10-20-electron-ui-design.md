@@ -77,3 +77,22 @@ The user: "keep layout similar to bohpum, instead of sastra pdf". So:
   Bohpum's properties panel (300–520 px), with the print bar at its foot.
 - Boxes as Bohpum's modals (white, header line, footer band); Preview as Bohpum's print screen (white header and left
   column, the sheet on the pasteboard grey).
+
+## Change (same day): presets back in the panel; Preview of every file
+The user: "the panel should be the same before, and preview should have preview all the file with the preset for user
+to see how their file look when printed". So:
+- No Presets panel on the left. The settings panel on the right starts again with the folding **Presets** section
+  (preset big dropdown, Apply to selected, Manage presets…, Save as preset…, Update preset), then the file settings.
+  The title row and toolbar stay as Bohpum's.
+- **Preview** (F5, Preview button, double-click a row) shows every ticked file (all readable files when none is ticked,
+  or when the file it was opened from is not ticked), one after the other on the pasteboard grey:
+  - left column: a card per file (number, name, preset chip with `*`, printer · tray · paper · sides, sheets · pages ·
+    copies); click scrolls to it; the file in view is marked;
+  - each file: a sticky header with the same facts and a **Preset** dropdown — picking a preset there gives it to the
+    file (as Apply) and redraws its sheets, so the user can try presets and see the result;
+  - every sheet side drawn by the engine at thumbnail size when scrolled near (one request at a time, the ones on
+    screen first; replies cached per file, side and size); two-sided files show front and back side by side with
+    "Sheet 1 · front 120 | 1 · back 2 | 119" under them; a size slider (4 steps, remembered);
+  - **One sheet** (click a sheet, or the switch in the header): that side large, click = actual size, ← → / PgUp / PgDn
+    go on across files; Esc returns to all sheets, Esc again closes.
+  - Sides per file come from `estimate` (`sides` per copy), so the engine protocol is unchanged.
