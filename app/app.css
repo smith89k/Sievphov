@@ -314,7 +314,20 @@ body.dropping .list::after{content:"Drop PDF files or folders to add them";posit
 .presets .plist li .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .presets .plist li .kb{font-family:var(--mono);font-size:11px;color:var(--ink-3);font-weight:400}
 .presets .plist li .def{font-size:10.5px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-weight:500}
-.presets .ptools{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px;border-top:1px solid var(--line)}
+.presets .ptools{display:flex;flex-direction:column;gap:8px;padding:10px;border-top:1px solid var(--line)}
+.presets .pnew{width:100%;height:34px;border:1px dashed var(--accent-line);background:var(--field);color:var(--accent);font-weight:500;font-size:12.5px}
+.presets .pnew:hover{border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
+.presets .pnew svg{width:16px;height:16px}
+.presets .picons{display:flex;align-items:center;gap:2px;padding:2px;border:1px solid var(--line-2);border-radius:7px;background:var(--field)}
+.presets .picons .btn{flex:1;height:30px;min-width:0;padding:0;color:var(--ink-2)}
+.presets .picons .btn:hover{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.presets .picons .btn.danger:hover{background:color-mix(in srgb,var(--err) 10%,transparent);color:var(--err)}
+.presets .picons .btn svg{width:16px;height:16px}
+.presets .picons .sep{flex:none;width:1px;height:18px;background:var(--line-2)}
+.presets .pio{display:flex;gap:6px}
+.presets .pio .btn{flex:1;height:28px;gap:6px;color:var(--ink-2);font-size:12px}
+.presets .pio .btn:hover{color:var(--accent);background:var(--chrome-2)}
+.presets .pio .btn svg{width:15px;height:15px}
 .presets .pedit{overflow:auto;min-height:0;background:var(--chrome)}
 .presets .acts{grid-column:1/-1}
 .presets .pname{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}

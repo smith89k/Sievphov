@@ -35,6 +35,8 @@ const ICONS = {
   auto:'<rect x="4" y="6" width="9" height="13" rx="1.5"/><rect x="11" y="4" width="9" height="6" rx="1.2"/><path d="M15 13.5a3.5 3.5 0 0 1-3.5 3.5"/>',
   portrait:'<rect x="6" y="3" width="12" height="18" rx="1.5"/>', landscape:'<rect x="3" y="6" width="18" height="12" rx="1.5"/>',
   hash:'<path d="M5 9h14M5 15h14M10 4l-2 16M16 4l-2 16"/>', text:'<path d="M5 6V4.5h14V6M12 4.5v15M9 19.5h6"/>', image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M21 16l-5-5L5 20"/>',
+  import:'<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M5 15v3.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V15"/>',
+  export:'<path d="M12 15V4M7.5 8.5L12 4l4.5 4.5"/><path d="M5 15v3.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V15"/>',
   copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
   paste:'<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 13.5h6M9 17h4"/>',
   reset:'<path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M4 3.5V9h5.5"/>', check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>', uncheck:'<rect x="4" y="4" width="16" height="16" rx="3"/>',
@@ -929,9 +931,17 @@ function openPresetManager(selectId) {
   let cur = M.findPreset(draft, selectId) || M.findPreset(draft, state.presetPick?.Id) || draft.Presets[0] || null;
   const { box, close } = openBox('presets', `<div class="head"><h2>Manage presets</h2></div>
     <div class="plist"><ul id="pmList"></ul><div class="ptools">
-      <button class="tbtn" data-a="new">New</button><button class="tbtn" data-a="dup">Duplicate</button><button class="tbtn" data-a="del">Delete</button>
-      <button class="tbtn" data-a="up" title="Move up">▲ Up</button><button class="tbtn" data-a="down" title="Move down">▼ Down</button><button class="tbtn" data-a="def">Default</button>
-      <button class="tbtn" data-a="imp">Import…</button><button class="tbtn" data-a="exp">Export…</button><span></span></div></div>
+      <button class="btn pnew" data-a="new">${svg('plus')}<span>New preset</span></button>
+      <div class="picons" role="toolbar" aria-label="The chosen preset">
+        <button class="btn" data-a="dup" title="Duplicate" aria-label="Duplicate">${svg('copy')}</button>
+        <button class="btn" data-a="def" title="Make it the default (given to files you add)" aria-label="Make default">${svg('star')}</button>
+        <span class="sep"></span>
+        <button class="btn" data-a="up" title="Move up" aria-label="Move up">${svg('up')}</button>
+        <button class="btn" data-a="down" title="Move down" aria-label="Move down">${svg('down')}</button>
+        <span class="sep"></span>
+        <button class="btn danger" data-a="del" title="Delete" aria-label="Delete">${svg('trash')}</button>
+      </div>
+      <div class="pio"><button class="btn" data-a="imp" title="Add presets from a .svpreset file">${svg('import')}<span>Import…</span></button><button class="btn" data-a="exp" title="Save all presets to a file, to copy them to another PC">${svg('export')}<span>Export…</span></button></div></div></div>
     <div class="pedit" id="pmEdit"></div>
     <div class="acts"><span class="hint" style="margin-right:auto;color:var(--muted);font-size:12px">The default preset is given to files you add. Ctrl+1 … Ctrl+9 apply the first nine.</span>
       <button class="btn outline" data-a="cancel">Cancel</button><button class="btn primary" data-a="save">Save presets</button></div>`,
@@ -940,7 +950,10 @@ function openPresetManager(selectId) {
   let ed = null;
   function drawList() {
     listEl2.innerHTML = draft.Presets.map((p, i) => `<li data-id="${esc(p.Id)}" class="${cur && p.Id === cur.Id ? 'on' : ''}"><span class="nm">${esc(p.Name)}</span>${p.Id === draft.DefaultPresetId ? '<span class="def">Default</span>' : ''}<span class="kb">${i < 9 ? 'Ctrl+' + (i + 1) : ''}</span></li>`).join('') ||
-      '<li style="cursor:default;color:var(--muted)">No presets yet — click New.</li>';
+      '<li style="cursor:default;color:var(--muted)">No presets yet — click New preset.</li>';
+    const i = cur ? draft.Presets.indexOf(cur) : -1, dis = (a, off) => { box.querySelector(`[data-a="${a}"]`).disabled = off; };
+    dis('dup', !cur); dis('del', !cur); dis('up', i <= 0); dis('down', i < 0 || i >= draft.Presets.length - 1);
+    dis('def', !cur || cur.Id === draft.DefaultPresetId); dis('exp', !draft.Presets.length);
   }
   function drawEditor() {
     editEl.innerHTML = '';
