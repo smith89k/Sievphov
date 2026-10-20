@@ -172,7 +172,8 @@ app.whenReady().then(async () => {
     // Repeat: the whole list 3 times (3 books)
     await click('#repPlus'); await click('#repPlus');
     check((await js(`document.getElementById('printLbl').textContent`)) === 'Print 2 files × 3', 'Repeat 3: the Print button says × 3');
-    check((await js(`document.getElementById('sumFiles').textContent`)).includes('(3 sets)'), 'Repeat 3: the summary counts 3 sets');
+    check((await js(`document.getElementById('printSum').textContent`)) === '12 pages · about 9 sheets', 'Repeat 3: the Print button counts the pages and sheets of all 3 sets');
+    check(!(await js(`document.getElementById('status').textContent`)).includes('sheet'), 'pages and sheets are not repeated in the status bar');
     await shot('07b-repeat');
     await key('P', ['control']);
     await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'print question');

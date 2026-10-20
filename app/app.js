@@ -487,8 +487,8 @@ function totals(list = ticked()) {
 }
 function renderSummary() {
   const t = totals(), r = state.repeat;
-  $('#sumFiles').textContent = t.files ? `${plural(t.files, 'file')} ticked · ${plural(t.pages * r, 'page')}${r > 1 ? ` (${r} sets)` : ''}` : 'No files ticked';
-  $('#sumSheets').textContent = t.files ? `about ${plural(t.sheets * r, 'sheet')}` : '';
+  // the only place with pages and sheets of what prints (the status bar counts the list, the panel the selection)
+  $('#printSum').textContent = t.files ? `${plural(t.pages * r, 'page')} · about ${plural(t.sheets * r, 'sheet')}` : 'Tick the files to print';
   if (!state.printing) $('#printLbl').textContent = t.files ? `Print ${plural(t.files, 'file')}${r > 1 ? ` × ${r}` : ''}` : 'Print';
   $('#bPrint').disabled = !t.files || !!state.printing;
   syncRepeat();
@@ -517,12 +517,9 @@ $('#repeat').addEventListener('keydown', e => {
 });
 function renderStatus() {
   const n = state.items.length, t = state.items.filter(it => it.checked && it.pageCount > 0).length;
-  $('#stFiles').textContent = n ? `${plural(n, 'file')} · ${t} ticked` : 'No files';
-  $('#stSel').textContent = state.sel.size ? `${state.sel.size} selected` : '';
+  $('#stFiles').textContent = n ? `${plural(n, 'file')} · ${t} ticked${state.sel.size ? ` · ${state.sel.size} selected` : ''}` : 'No files';
   const b = $('#stBusy');
   b.className = 'grow' + (state.busy || state.printing ? ' busy' : '');
-  const tt = totals();
-  $('#stSheets').textContent = tt.files ? `${plural(tt.pages, 'page')} · about ${plural(tt.sheets, 'sheet')}` : '';
   b.innerHTML = state.busy || state.printing ? `<span class="spin"></span><span>${esc(state.printing ? state.printing.text || 'Printing…' : state.busyText)}</span>` : '';
   $('#stEngine').textContent = desk?.fakeEngine ? 'Stand-in engine — nothing is printed' : '';
 }

@@ -88,14 +88,13 @@
       <div id="settingsBox"></div>
     </div>
     <div class="printbar" id="printbar">
-      <div class="sum"><span id="sumFiles">No files ticked</span><span id="sumSheets"></span></div>
       <div class="bar" id="runBar" hidden><i></i></div>
       <div class="repeat" title="Print the whole list this many times, one complete set after another: file 1, 2, 3 … then again. For 30 books made of several files, set 30.">
         <span class="rl"><b>Repeat</b><small>Print the whole list, set after set</small></span>
         <span class="stepper"><button class="btn" id="repMinus" aria-label="Fewer times">−</button><input type="number" id="repeat" min="1" max="999" step="1" value="1" aria-label="How many times to print the whole list"><button class="btn" id="repPlus" aria-label="More times">+</button></span>
         <span class="rx">times</span>
       </div>
-      <button class="btn primary go" id="bPrint" title="Print every ticked file (Ctrl+P)"><svg class="i" data-i="print"></svg><span id="printLbl">Print</span></button>
+      <button class="btn primary go" id="bPrint" title="Print every ticked file (Ctrl+P)"><svg class="i" data-i="print"></svg><span class="gl"><span id="printLbl">Print</span><small id="printSum"></small></span></button>
       <div class="run" id="runBtns" hidden>
         <button class="btn" id="bPause"><svg class="i" data-i="pause"></svg><span>Pause</span></button>
         <button class="btn" id="bStop"><svg class="i" data-i="stop"></svg><span>Stop</span></button>
@@ -104,7 +103,7 @@
   </aside>
 </main>
 
-<footer id="status"><span id="stFiles">No files</span><span id="stSel"></span><span class="grow" id="stBusy"></span><span id="stSheets"></span><span id="stEngine"></span></footer>
+<footer id="status"><span id="stFiles">No files</span><span class="grow" id="stBusy"></span><span id="stEngine"></span></footer>
 
 <script src="model.js"></script>
 <script src="notes.js"></script>
