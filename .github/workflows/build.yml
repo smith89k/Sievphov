@@ -5,57 +5,69 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # only used to publish self-test results to the ci/selftest branch
+  contents: write # only used to publish test output to the ci/selftest branch
 
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4   # the version comes from package.json "packageManager"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
 
-      - name: Tests
-        run: dotnet test tests/Sievphov.Tests -c Release
+      - name: Install packages
+        run: pnpm install --frozen-lockfile
 
-      - name: Build Sievphov.exe
-        run: dotnet publish src/Sievphov -p:PublishProfile=win-x64 -o dist/Sievphov
+      - name: Print engine (C# tests + Sievphov.Engine.exe)
+        run: pnpm run engine
+
+      - name: JS tests (with the real engine)
+        run: pnpm test
+
+      - name: Window test (stand-in engine, screenshots)
+        shell: pwsh
+        run: |
+          $env:SIEVPHOV_SHOTS = Join-Path $pwd 'selftest\screens'
+          pnpm run test:ui
 
       - name: Self-test (prints sample books to Microsoft Print to PDF)
         shell: pwsh
         run: |
           $out = Join-Path $pwd 'selftest'
-          $p = Start-Process -FilePath dist/Sievphov/Sievphov.exe -ArgumentList '--selftest', "`"$out`"" -PassThru
+          $p = Start-Process -FilePath engine-dist/Sievphov.Engine.exe -ArgumentList '--selftest', "`"$out`"" -PassThru
           if (-not $p.WaitForExit(600000)) { $p.Kill(); throw 'Self-test timed out' }
           Get-Content (Join-Path $out 'selftest.log')
-          Get-ChildItem $out | Format-Table Name, Length
           if ($p.ExitCode -ne 0) { throw "Self-test failed with code $($p.ExitCode)" }
 
-      - name: Upload Sievphov.exe
+      - name: Installer
+        run: pnpm exec electron-builder --win nsis --publish never
+
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: Sievphov-win-x64
-          path: dist/Sievphov/Sievphov.exe
+          name: Sievphov-Setup
+          path: dist/Sievphov-Setup-*.exe
 
-      - name: Upload self-test output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: selftest-output
-          path: selftest
-
-      # Keeps the latest self-test pictures and printed PDFs on the ci/selftest branch for review.
-      - name: Publish self-test output to ci/selftest branch
+      # Keeps the latest screenshots, self-test pictures and printed PDFs on the ci/selftest branch for review.
+      - name: Publish test output to ci/selftest branch
         if: always()
         shell: pwsh
         run: |
+          if (-not (Test-Path selftest)) { exit 0 }
           Set-Location selftest
           git init -q -b ci/selftest
           git config user.name "Sievphov CI"
           git config user.email "ci@users.noreply.github.com"
           git add -A
-          git commit -q -m "Self-test output for ${{ github.sha }}"
+          git commit -q -m "Test output for ${{ github.sha }}"
           git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci/selftest

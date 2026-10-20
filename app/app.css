@@ -1,0 +1,373 @@
+/* Sievphov — the look of Sastra PDF and Bohpum (same tokens, fonts, controls and boxes), with the logo's purple.
+   Layout: title row (the window's title bar) · the file list | the settings panel · status bar. */
+:root{
+  --chrome:#efece8; --panel:#f8f6f3; --canvas:#cfcbc5; --line:#dcd7d0; --line-strong:#c7c1b8;
+  --fg:#23201c; --muted:#6c665e; --accent:#6a3fd8; --accent-fg:#ffffff; --accent-soft:rgba(106,63,216,.12);   /* the logo's purple, deep enough for white text (6.2:1) */
+  --hover:rgba(35,32,28,.07); --page-shadow:0 1px 2px rgba(0,0,0,.18),0 6px 18px rgba(0,0,0,.12);
+  --ok:#2f7a4b; --err:#b3261e; --warn:#8a5a00; --linkedin:#0a66c2; --row-sel:rgba(106,63,216,.10);
+  --ui:"IBM Plex Sans","Noto Sans Khmer","Khmer UI",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono","Noto Sans Khmer","Khmer UI",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --tick:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-4.9' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --dash:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 6h6' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --chrome:#1f1d1b; --panel:#272523; --canvas:#141312; --line:#34312e; --line-strong:#47433e;
+  --fg:#ece8e2; --muted:#a29b91; --accent:#a58bff; --accent-fg:#170d33; --accent-soft:rgba(165,139,255,.16);
+  --hover:rgba(255,255,255,.07); --page-shadow:0 1px 2px rgba(0,0,0,.5),0 8px 24px rgba(0,0,0,.45);
+  --ok:#6cc08b; --err:#ff8a80; --warn:#e9c46a; --linkedin:#5aa2ea; --row-sel:rgba(165,139,255,.14); color-scheme:dark;
+  --tick:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-4.9' fill='none' stroke='%23170d33' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --dash:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 6h6' fill='none' stroke='%23170d33' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E")}}
+:root[data-theme="dark"]{
+  --chrome:#1f1d1b; --panel:#272523; --canvas:#141312; --line:#34312e; --line-strong:#47433e;
+  --fg:#ece8e2; --muted:#a29b91; --accent:#a58bff; --accent-fg:#170d33; --accent-soft:rgba(165,139,255,.16);
+  --hover:rgba(255,255,255,.07); --page-shadow:0 1px 2px rgba(0,0,0,.5),0 8px 24px rgba(0,0,0,.45);
+  --ok:#6cc08b; --err:#ff8a80; --warn:#e9c46a; --linkedin:#5aa2ea; --row-sel:rgba(165,139,255,.14); color-scheme:dark;
+  --tick:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-4.9' fill='none' stroke='%23170d33' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --dash:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 6h6' fill='none' stroke='%23170d33' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E")}
+
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--chrome);color:var(--fg);font-family:var(--ui);font-size:13px;overflow:hidden}
+/* native feel: no text selection, I-beam cursor or image dragging in the UI; text fields still work */
+body{-webkit-user-select:none;user-select:none;cursor:default}
+input:not([type=checkbox],[type=radio],[type=color],[type=range]),textarea{-webkit-user-select:text;user-select:text;cursor:text}
+img{-webkit-user-drag:none}
+button,select,input{font:inherit;color:inherit}
+svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+#app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr);grid-template-areas:"menu" "work" "status";background:var(--chrome)}
+#app>.menubar{grid-area:menu}#app>.workspace{grid-area:work}#app>.status{grid-area:status}
+
+/* ---------- title row (main.js titleBarStyle 'hidden'): drag to move, double-click to maximize ---------- */
+.menubar{display:flex;align-items:center;gap:4px;height:45px;box-sizing:border-box;padding:0 calc(max(10px,env(safe-area-inset-right,0px)) + 100vw - env(titlebar-area-x,0px) - env(titlebar-area-width,100vw)) 0 max(10px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line);min-width:0;-webkit-app-region:drag}
+.menubar :is(button,select,input){-webkit-app-region:no-drag}
+.modal-bg,.cmenu{-webkit-app-region:no-drag}   /* a drag area ignores what is drawn over it */
+:root.fullwin .menubar{padding-right:max(10px,env(safe-area-inset-right,0px))}
+.menubar[inert] :is(.btn,.brand){opacity:.45}
+#bMenu{margin-left:-4px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:.01em;margin:0 4px 0 0;padding:3px 6px;border:0;border-radius:6px;background:transparent;font-size:14px;white-space:nowrap;cursor:pointer}
+.brand:hover{background:var(--hover)}
+.brand-mark{width:26px;height:26px;display:block;flex:none}
+.brand-km{font-family:"Noto Sans Khmer","Khmer OS Battambang","Khmer UI",sans-serif;font-weight:500;color:var(--muted);font-size:13px;padding-left:8px;border-left:1px solid var(--line-strong)}
+.spacer{flex:1}
+.btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:0;background:transparent;border-radius:6px;cursor:pointer;white-space:nowrap;flex:none}
+.btn:hover:not(:disabled){background:var(--hover)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.icon{width:32px;padding:0;justify-content:center}
+.btn.on{background:var(--accent-soft);color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);font-weight:500}
+.btn.primary:hover:not(:disabled){filter:brightness(1.07);background:var(--accent)}
+.btn.outline{border:1px solid var(--line-strong)}
+.btn.link{height:auto;padding:0;color:var(--accent);font-weight:500}
+.btn.link:hover:not(:disabled){background:none;text-decoration:underline}
+.btn:focus-visible,select:focus-visible,input:focus-visible,.row:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.sep{width:1px;height:20px;background:var(--line-strong);margin:0 4px;flex:none}
+/* Save job ▾, as Sastra's Save ▾ */
+.splitbtn{display:inline-flex;align-items:center;flex:none;border-radius:6px}
+.splitbtn>.btn{border-radius:0}
+.splitbtn>.btn:first-child{border-radius:6px 0 0 6px}
+.splitbtn>.btn.more{width:20px;border-radius:0 6px 6px 0;position:relative}
+.splitbtn>.more::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:1px;background:var(--line-strong);opacity:0}
+.splitbtn:hover>.more::before,.splitbtn>.more[aria-expanded="true"]::before{opacity:1}
+.splitbtn:hover>.btn:not(:disabled),.splitbtn>.more[aria-expanded="true"]{background:var(--hover)}
+.splitbtn>.more svg{width:12px;height:12px;transform:rotate(180deg)}
+/* the row sheds labels as the window narrows; tooltips, ☰ and shortcuts keep everything reachable */
+@media (max-width:1320px){.menubar .btn .lbl{display:none}}
+@media (max-width:1060px){.menubar .brand-km{display:none}}
+
+/* ---------- dropdowns, tick boxes: the app's own look (customizable <select>), as in Sastra PDF and Bohpum ---------- */
+select,::picker(select){appearance:base-select}
+select{display:inline-flex;align-items:center;white-space:nowrap;cursor:default;gap:6px}
+select::picker-icon{content:"";flex:none;width:6px;height:6px;margin:0 2px 3px auto;border-right:1.6px solid var(--muted);border-bottom:1.6px solid var(--muted);transform:rotate(45deg);transition:transform .12s}
+select:open::picker-icon{transform:translateY(3px) rotate(225deg);border-color:var(--accent)}
+select:open{border-color:var(--accent)}
+::picker(select){border:1px solid var(--line-strong);border-radius:8px;background:var(--panel);color:var(--fg);box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px;margin:4px 0;max-height:min(420px,70vh)}
+select option{display:flex;align-items:center;gap:8px;min-height:30px;box-sizing:border-box;padding:7px 10px;border-radius:5px;white-space:nowrap}
+select option:hover,select option:focus-visible{background:var(--hover);outline:0}
+select option:checked{background:var(--accent-soft)}
+select option::checkmark{order:1;margin-left:auto;padding-left:12px;color:var(--accent)}
+select option:disabled{color:var(--muted)}
+select>button{display:flex;align-items:center;flex:1;min-width:0;padding:0;border:0;background:none;font:inherit;color:inherit;text-align:left;cursor:inherit}
+select selectedcontent{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+input[type=checkbox],input[type=radio]{appearance:none;flex:none;width:16px;height:16px;margin:0;box-sizing:border-box;border:1.5px solid var(--line-strong);border-radius:4px;background:var(--chrome) center/12px 12px no-repeat;vertical-align:-3px;cursor:pointer;transition:background-color .1s,border-color .1s}
+input[type=radio]{border-radius:50%}
+input[type=checkbox]:hover:not(:checked):not(:disabled){border-color:var(--muted)}
+input[type=checkbox]:checked{border-color:var(--accent);background-color:var(--accent);background-image:var(--tick)}
+input[type=checkbox]:indeterminate{border-color:var(--accent);background-color:var(--accent);background-image:var(--dash)}
+input[type=checkbox]:disabled{opacity:.5;cursor:default}
+input[type=color]{width:42px;height:30px;padding:2px;border:1px solid var(--line-strong);border-radius:6px;background:var(--chrome);cursor:pointer}
+
+/* ---------- workspace: the file list | the settings panel ---------- */
+.workspace{display:flex;min-height:0;position:relative}
+.list{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--panel);position:relative;outline:none}
+.cols{--cols:34px 34px minmax(200px,2.4fr) 58px minmax(130px,1.3fr) minmax(130px,1.4fr) minmax(110px,1fr) 104px 54px minmax(118px,1.1fr)}
+.list-head{display:grid;grid-template-columns:var(--cols);align-items:center;height:34px;padding:0 10px;border-bottom:1px solid var(--line);background:var(--chrome);font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);flex:none}
+.list-head>*{padding:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list-head button{display:flex;align-items:center;gap:4px;height:26px;border:0;border-radius:5px;background:transparent;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer;text-align:left;padding:0 8px;margin:0}
+.list-head button:hover{background:var(--hover);color:var(--fg)}
+.list-head button .arrow{font-size:9px;color:var(--accent)}
+.list-head .center,.row .center{text-align:center;justify-content:center}
+.rows{flex:1;overflow-y:auto;padding:4px 10px 24px;min-height:0}
+.row{display:grid;grid-template-columns:var(--cols);align-items:center;min-height:46px;border-radius:7px;position:relative;outline:none}
+.row>*{padding:0 8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row+.row{margin-top:2px}
+.row:hover{background:var(--hover)}
+.row.sel{background:var(--row-sel)}
+.row.sel::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:2px;background:var(--accent)}
+.row.off .file,.row.off .meta{opacity:.5}
+.row .num{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.file{display:flex;align-items:center;gap:10px}
+.file .doc{flex:none;width:26px;height:32px;display:grid;place-items:center;border-radius:5px;background:var(--accent-soft);color:var(--accent)}
+.file .doc svg{width:16px;height:16px}
+.file .nm{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+.file .nm b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file .nm small{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{color:var(--fg)}
+.meta.dim{color:var(--muted)}
+.row .pages{font-family:var(--mono);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;gap:2px;max-width:100%;box-sizing:border-box;padding:2px 9px;border-radius:999px;background:var(--hover);font-size:12px;white-space:nowrap;vertical-align:middle;min-width:0}
+.chip .cl{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.chip .star{flex:none}
+.chip.preset{background:var(--accent-soft);color:var(--accent);font-weight:500}
+.chip .star{font-weight:700}
+.chip.own{background:var(--hover);color:var(--muted);font-weight:400}
+.pill{display:inline-flex;align-items:center;gap:6px;max-width:100%;box-sizing:border-box;padding:2px 9px;border-radius:999px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill.wait{color:var(--muted);background:var(--hover)}
+.pill.printing{color:var(--accent);background:var(--accent-soft);font-weight:500}
+.pill.printed{color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.pill.error,.pill.locked{color:var(--err);background:color-mix(in srgb,var(--err) 12%,transparent)}
+.pill.stopped{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.pill.check{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.row.drop-before::after,.row.drop-after::after{content:"";position:absolute;left:6px;right:6px;height:3px;border-radius:2px;background:var(--accent)}
+.row.drop-before::after{top:-3px}.row.drop-after::after{bottom:-3px}
+.row.dragging{opacity:.4}
+/* no files yet: what the list is for */
+.empty{position:absolute;inset:34px 0 0;display:grid;place-items:center;padding:24px;pointer-events:none}
+.drop{pointer-events:auto;max-width:460px;width:100%;box-sizing:border-box;border:2px dashed var(--line-strong);border-radius:14px;padding:36px 28px;text-align:center;background:var(--chrome);display:flex;flex-direction:column;align-items:center;gap:12px}
+.drop .big-ic{width:64px;height:64px;display:block}
+.drop h2{margin:0;font-size:20px;font-weight:600;text-wrap:balance}
+.drop p{margin:0;color:var(--muted);line-height:1.5}
+.drop .acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;padding:0 4px;color:var(--fg)}
+.dropping .list::after{content:"Drop PDF files or folders to add them";position:absolute;inset:12px;border:3px dashed var(--accent);border-radius:12px;display:grid;place-items:center;font-size:16px;font-weight:600;color:var(--accent);background:var(--accent-soft);pointer-events:none;z-index:5}
+
+/* ---------- settings panel (as Sastra PDF's Tools panel; fields as its Print screen) ---------- */
+.tools{width:var(--tools-w,372px);flex:none;display:flex;flex-direction:column;background:var(--chrome);border-left:1px solid var(--line);min-height:0}
+.tools-scroll{flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;padding-bottom:16px}
+.tools-scroll>*{--chrome:var(--panel)}   /* controls in the panel are lighter cards, as in Sastra PDF */
+.tools-resizer{position:absolute;top:0;bottom:0;right:calc(var(--tools-w,372px) - 4px);width:7px;z-index:21;cursor:col-resize}
+.tools-resizer::after{content:"";position:absolute;top:0;bottom:0;left:2px;width:3px;background:var(--accent);opacity:0;transition:opacity .12s}
+.tools-resizer:hover::after,body.resizing .tools-resizer::after{opacity:1}
+body.resizing,body.resizing *{cursor:col-resize!important}
+.tsec{border-bottom:1px solid var(--line);padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.tsec h3{margin:0}
+.tsec-head{display:flex;align-items:center;gap:8px;width:calc(100% + 16px);margin:-6px -8px;padding:6px 8px;border:0;border-radius:6px;background:transparent;color:var(--muted);font:inherit;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-align:left;cursor:pointer}
+.tsec-head:hover{background:var(--hover)}
+.tsec-head svg{width:15px;height:15px;flex:none;color:var(--accent)}
+.tsec-head svg.chev{margin-left:auto;width:14px;height:14px;color:inherit;transition:transform .15s}
+.tsec-head .count{margin-left:6px;padding:0 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:10.5px;letter-spacing:.02em;text-transform:none}
+.tsec.folded{padding-bottom:14px}
+.tsec.folded>:not(h3){display:none}
+.tsec.folded .chev{transform:rotate(180deg)}
+.tsec .hint{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tbtn{display:flex;align-items:center;justify-content:center;gap:8px;height:34px;padding:0 10px;border:1px solid var(--line);background:var(--chrome);border-radius:7px;cursor:pointer;min-width:0}
+.tbtn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbtn:hover:not(:disabled){border-color:var(--line-strong);background:var(--hover)}
+.tbtn:disabled{opacity:.45;cursor:default}
+.tbtn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:500}
+.tbtn.primary:hover:not(:disabled){filter:brightness(1.07);background:var(--accent)}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.flabel{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.flabel.changed{color:var(--fg);font-weight:600}
+.flabel.changed::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+.flabel .mixed{margin-left:auto;font-weight:400;font-size:11px;color:var(--warn)}
+.field :is(select:not(.big),input[type=text],input[type=number]){height:32px;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:6px;background:var(--chrome);padding:0 8px;width:100%;min-width:0}
+.field input::placeholder{color:var(--muted);opacity:.8}
+.field input.is-mixed::placeholder{color:var(--warn);opacity:1}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.seg{display:flex;border:1px solid var(--line-strong);border-radius:7px;overflow:hidden}
+.seg button{flex:1;height:30px;border:0;background:var(--chrome);cursor:pointer;font-size:12px;white-space:nowrap}
+.seg button+button{border-left:1px solid var(--line-strong)}
+.seg button.on{background:var(--accent);color:var(--accent-fg);font-weight:500}
+.seg.mixed button.on{background:var(--accent-soft);color:var(--accent)}
+.chk{display:flex;align-items:center;gap:8px;min-height:24px;cursor:pointer}
+.chk:has(input:disabled){opacity:.5;cursor:default}
+.subbox{display:flex;flex-direction:column;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--chrome)}
+.subbox :is(select:not(.big),input[type=number],input[type=text]){background:var(--panel)!important}
+.err-msg{color:var(--err);font-size:12px;margin:0}
+.sel-head{display:flex;align-items:center;gap:10px;min-width:0}
+.sel-head .doc{flex:none;width:30px;height:36px;display:grid;place-items:center;border-radius:6px;background:var(--accent-soft);color:var(--accent)}
+.sel-head .nm{display:flex;flex-direction:column;min-width:0;line-height:1.35}
+.sel-head b{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-head small{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-head small.bad{color:var(--err);white-space:normal}
+.preset-line{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:8px 10px;border-radius:7px;background:var(--hover);font-size:12.5px}
+.preset-line .chip{flex:0 1 auto}
+.disabled-all{opacity:.5;pointer-events:none}
+/* big dropdowns, as in Bohpum's and Sastra PDF's Print screen: picture · title · one line of explanation */
+select.big{display:flex;width:100%;min-height:52px;box-sizing:border-box;margin:0;padding:8px 12px 8px 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--chrome)}
+select.big selectedcontent,select.big option{display:flex;align-items:center;gap:10px;min-width:0}
+select.big option{padding:8px 10px}
+.big .ic{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:6px;background:var(--accent-soft);color:var(--accent)}
+.big .ic svg{width:18px;height:18px}
+.big option .ic{background:var(--hover);color:var(--muted)}
+.big option:checked .ic{background:var(--chrome);color:var(--accent)}
+.big .t{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+.big .t b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.big .t small{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+select.big.is-mixed{border-style:dashed;border-color:var(--warn)}
+.copies-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.copies-row label{display:flex;align-items:center;gap:10px;font-size:12.5px}
+.copies-row input{width:84px!important}
+/* the print bar at the foot of the panel: what will happen · Print / Pause · Stop */
+.printbar{flex:none;display:flex;flex-direction:column;gap:8px;padding:12px 16px 14px;border-top:1px solid var(--line);background:var(--chrome)}
+.printbar .go{height:40px;font-size:14px;justify-content:center}
+.printbar .run{display:flex;gap:6px}
+.printbar .run .tbtn{flex:1}
+.printbar .sum{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.bar{position:relative;height:6px;overflow:hidden;border-radius:3px;background:var(--line)}
+.bar>i{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:3px;background:var(--accent);transition:width .15s}
+
+/* ---------- status bar ---------- */
+.status{display:flex;align-items:center;gap:14px;padding:4px max(12px,env(safe-area-inset-right,0px)) 4px max(12px,env(safe-area-inset-left,0px));border-top:1px solid var(--line);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;min-width:0}
+.status .busy{color:var(--accent);display:flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis}
+.spin{width:12px;height:12px;border:2px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- toast, boxes (no Windows message boxes anywhere, as in Sastra PDF) ---------- */
+.toast{position:fixed;left:50%;bottom:calc(44px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--chrome);padding:9px 14px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:13px;max-width:min(560px,calc(100% - 32px));z-index:90;transition:opacity .2s}
+.toast.err{background:var(--err);color:#fff}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:grid;place-items:center;z-index:60;padding:16px}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;max-width:400px;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;box-shadow:0 16px 48px rgba(0,0,0,.3);max-height:calc(100vh - 32px)}
+.modal h2{margin:0;font-size:16px;font-weight:600}
+.modal p{margin:0;line-height:1.5}
+.modal .acts{display:flex;justify-content:flex-end;gap:8px;align-items:center}
+.modal .acts .btn{height:32px;padding:0 14px}
+.modal p.detail{color:var(--muted);font-size:13px}
+.modal .names{margin:0;padding:8px 10px 8px 26px;max-height:168px;overflow-y:auto;background:var(--chrome);border:1px solid var(--line);border-radius:6px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.modal .field input[type=text],.modal .field input[type=password]{height:34px;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:6px;background:var(--chrome);padding:0 10px;width:100%}
+.modal .field select:not(.big){height:34px;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:6px;background:var(--chrome);padding:0 8px;width:100%}
+.est{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+.est th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line)}
+.est td{padding:7px 8px;border-bottom:1px solid var(--line)}
+.est td.n,.est th.n{text-align:right}
+.est tfoot td{font-weight:600;border-bottom:0}
+.modal.wide{max-width:560px}
+.problems{margin:0;padding:8px 10px 8px 26px;max-height:140px;overflow:auto;background:var(--chrome);border:1px solid var(--line);border-radius:6px;color:var(--err);font-size:12.5px;user-select:text}
+/* report after printing */
+.modal.report{max-width:min(1100px,calc(100vw - 32px));height:min(640px,calc(100vh - 32px));padding:0;gap:0}
+.report .head{display:flex;align-items:center;gap:14px;padding:18px 22px 14px;border-bottom:1px solid var(--line)}
+.report .head h2{flex:none}
+.report .stats{display:flex;gap:8px;flex-wrap:wrap}
+.report .body{flex:1;min-height:0;overflow:auto;padding:0 12px}
+.report table{width:100%;border-collapse:collapse;font-size:12.5px}
+.report th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:10px 10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.report td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+.report td.n{text-align:right;font-family:var(--mono);font-size:12px}
+.report .acts{padding:12px 22px 16px;border-top:1px solid var(--line)}
+/* manage presets */
+.modal.presets{max-width:min(1040px,calc(100vw - 32px));height:min(760px,calc(100vh - 32px));padding:0;gap:0;display:grid;grid-template-columns:300px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
+.presets .head{grid-column:1/-1;display:flex;align-items:center;padding:16px 22px;border-bottom:1px solid var(--line)}
+.presets .plist{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line);background:var(--chrome)}
+.presets .plist ul{flex:1;overflow:auto;margin:0;padding:8px;list-style:none;display:flex;flex-direction:column;gap:2px}
+.presets .plist li{display:flex;align-items:center;gap:8px;min-height:38px;padding:0 10px;border-radius:7px;cursor:pointer}
+.presets .plist li:hover{background:var(--hover)}
+.presets .plist li.on{background:var(--accent-soft);color:var(--accent);font-weight:500}
+.presets .plist li .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.presets .plist li .kb{font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400}
+.presets .plist li .def{font-size:10.5px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--accent-fg);font-weight:500}
+.presets .ptools{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px;border-top:1px solid var(--line)}
+.presets .ptools .tbtn{height:30px;font-size:12px;padding:0 6px}
+.presets .pedit{overflow:auto;min-height:0}
+.presets .pedit .tsec{border-bottom:1px solid var(--line)}
+.presets .acts{grid-column:1/-1;padding:12px 22px 16px;border-top:1px solid var(--line)}
+.presets .pname{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.presets .pname input{flex:1;height:34px;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:6px;background:var(--chrome);padding:0 10px;font-size:14px;font-weight:600}
+/* preview: fills the window under the title row, like the Print screen */
+.modal-bg.full-screen{top:45px;padding:0;background:var(--chrome);place-items:stretch}
+.modal.preview{width:100%;max-width:none;height:100%;max-height:none;padding:0;gap:0;border:0;border-radius:0;box-shadow:none;display:grid;grid-template-columns:320px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
+.preview .head{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:12px 24px;border-bottom:1px solid var(--line)}
+.preview .side{overflow:auto;padding:16px 20px;border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;gap:12px}
+.preview .side h4{margin:6px 0 0;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.preview .facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;margin:0;font-size:12.5px}
+.preview .facts dt{color:var(--muted)}
+.preview .facts dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview .view{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--canvas)}
+.preview .info{padding:12px 16px 0;min-height:18px;font-family:var(--mono);font-size:11.5px;color:var(--muted);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.preview .stage{flex:1;min-height:0;display:flex;padding:16px 20px 56px;overflow:hidden;box-sizing:border-box}
+.preview .stage.zoomed{overflow:auto;cursor:zoom-out}
+.preview .stage img{display:block;flex:none;margin:auto;background:#fff;box-shadow:var(--page-shadow);cursor:zoom-in}
+.preview .stage.zoomed img{cursor:zoom-out}
+.preview .none{margin:auto;color:var(--muted)}
+.preview .nav{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:2px 6px;border-radius:16px;background:color-mix(in srgb,var(--panel) 90%,transparent);font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+.preview .nav .btn.icon{width:28px;height:28px}
+.preview .nav span{min-width:120px;text-align:center}
+.preview .foot{grid-column:1/-1;display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:12px 24px;border-top:1px solid var(--line);background:var(--chrome)}
+.preview .foot .btn{height:34px;padding:0 18px}
+.preview .foot .note{margin-right:auto;color:var(--muted);font-size:12px}
+/* About, What's new: as in Sastra PDF */
+.modal.about{max-width:480px;overflow-y:auto;gap:16px;padding:22px}
+.about .acts{justify-content:space-between}
+.about-head{display:flex;align-items:center;gap:14px}
+.about-head img{width:56px;height:56px;flex:none}
+.about-name{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:600}
+.about-name .brand-km{font-size:15px}
+.about-ver{margin-top:3px;color:var(--muted);font-family:var(--mono);font-size:12px}
+.about .note{color:var(--muted);font-size:12px}
+.about section{display:flex;flex-direction:column;gap:12px;padding-top:16px;border-top:1px solid var(--line)}
+.about h3{margin:0;color:var(--muted);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.author{display:flex;align-items:center;gap:14px}
+.author img{width:64px;height:64px;border-radius:50%;object-fit:cover;flex:none;box-shadow:0 0 0 1px var(--line-strong)}
+.author b{display:block;font-size:15px;font-weight:600}
+.author span{color:var(--muted)}
+.author .handle{margin-left:8px;color:var(--accent);font-family:var(--mono);font-size:12px;font-weight:500}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none}
+.chips li{padding:3px 9px;border-radius:999px;background:var(--hover);font-family:var(--mono);font-size:11.5px}
+.about .links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.about .links a{display:flex;align-items:center;gap:10px;min-width:0;padding:8px 10px;border:1px solid var(--line-strong);border-radius:8px;color:inherit;text-decoration:none;transition:border-color .15s,background-color .15s}
+.about .links a:hover,.about .links a:focus-visible{border-color:var(--accent);background:var(--accent-soft);outline:none}
+.about .links svg.i{width:20px;height:20px;color:var(--ic)}
+.about .links span{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+.about .links b{font-size:12.5px;font-weight:500}
+.about .links small{overflow:hidden;color:var(--muted);font-family:var(--mono);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.about .link-web{--ic:var(--accent)} .about .link-linkedin{--ic:var(--linkedin)} .about .link-github{--ic:var(--fg)}
+.credits{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:5px 12px;margin:0;padding:0;list-style:none;font-size:12px}
+.credits li{display:contents}
+.credits a{color:var(--accent);text-decoration:none;font-weight:500}
+.credits a:hover{text-decoration:underline}
+.credits span{color:var(--muted);overflow-wrap:anywhere}
+.credits .cn{white-space:nowrap}
+.credits .cv{font-family:var(--mono);font-size:11px}
+.credits span:last-child{font-family:var(--mono);font-size:11px;text-align:right;white-space:nowrap}
+.modal.notes{max-width:900px;padding:0;gap:0}
+.notes-head{padding:20px 22px 12px}
+.notes-head h2{margin:0;font-size:18px;font-weight:600}
+.notes-date{margin-top:3px;color:var(--muted);font-family:var(--mono);font-size:12px}
+.notes-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:4px 22px 18px}
+.notes .acts{padding:12px 22px 16px;border-top:1px solid var(--line)}
+.notes-list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.notes-list li{display:flex;align-items:baseline;gap:10px;line-height:1.5}
+.notes-kind{flex:none;box-sizing:border-box;min-width:72px;padding:1px 7px;border-radius:999px;font-size:10.5px;font-weight:600;letter-spacing:.04em;line-height:1.6;text-align:center;text-transform:uppercase}
+.notes-kind-new{background:var(--accent-soft);color:var(--accent)}
+.notes-kind-improved{background:var(--chrome);color:var(--fg)}
+.notes-kind-fixed{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+.notes-kind-removed{background:var(--chrome);color:var(--muted)}
+.notes-more{margin-top:14px;padding:0 6px;color:var(--accent);font-weight:500}
+.notes-past{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.notes-past h3{display:flex;align-items:baseline;gap:10px;margin:0 0 10px;font-size:14px;font-weight:600}
+.notes-past h3 span{color:var(--muted);font-family:var(--mono);font-size:12px;font-weight:400}
+/* right-click menu (as Sastra PDF's) */
+.cmenu{position:fixed;left:0;top:0;z-index:70;min-width:250px;max-height:calc(100vh - 16px);overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px;box-shadow:0 12px 36px rgba(0,0,0,.28);display:flex;flex-direction:column;gap:1px;outline:none}
+.cmenu .ci{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;height:30px;padding:0 10px;border:0;border-radius:6px;background:transparent;text-align:left;cursor:pointer;white-space:nowrap;flex:none}
+.cmenu .ci:hover:not(:disabled),.cmenu .ci:focus-visible{background:var(--hover);outline:none}
+.cmenu .ci:disabled{opacity:.4;cursor:default}
+.cmenu .ci svg{width:16px;height:16px}
+.cmenu .kb{font-family:var(--mono);font-size:11px;color:var(--muted);padding-left:18px}
+.cmenu hr{border:0;border-top:1px solid var(--line);margin:4px 8px;flex:none}
+.cmenu .cap{padding:6px 10px 2px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* narrow window: Tray and Sides leave the list (still in the panel); hidden cells take no grid column */
+@media (max-width:1180px){.cols{--cols:34px 30px minmax(170px,2fr) 50px minmax(110px,1.2fr) minmax(96px,1fr) 48px minmax(100px,1fr)}.c-tray,.c-sides{display:none!important}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2s}.toast,.tsec-head svg.chev,.bar>i{transition:none}}

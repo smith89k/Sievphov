@@ -1,0 +1,154 @@
+// The list and preset rules (app/model.js) — `pnpm test`.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const M = require('../app/model.js');
+
+const item = (n, extra = {}) => ({ id: 'f' + n, path: `/x/${n}.pdf`, name: `${n}.pdf`, pageCount: 10, settings: M.defaults(), presetId: null, presetName: null, modified: false, checked: true, ...extra });
+function twoPresets() {
+  const a = { Id: 'a', Name: 'A', Settings: M.normalize({ PrinterName: 'HP 4303', Tray: 'Tray 2', Copies: 2 }) };
+  const b = { Id: 'b', Name: 'B', Settings: M.normalize({ PrinterName: 'Tally 1330', Copies: 5 }) };
+  return { lib: { DefaultPresetId: 'a', Presets: [a, b] }, a, b };
+}
+
+test('apply a preset to 3 of 5 files, change one by hand, edit the preset', () => {
+  const { lib, a } = twoPresets();
+  const items = [1, 2, 3, 4, 5].map(n => item(n));
+  M.applyPreset(items.slice(0, 3), a);
+  for (const it of items.slice(0, 3)) {
+    assert.equal(it.presetName, 'A');
+    assert.equal(it.settings.PrinterName, 'HP 4303');
+    assert.equal(it.settings.Tray, 'Tray 2');
+    assert.equal(it.modified, false);
+  }
+  for (const it of items.slice(3)) assert.equal(M.presetLabel(it), '—');
+  assert.notEqual(items[0].settings, items[1].settings, 'each file has its own copy');
+
+  M.setField([items[2]], 'Copies', 9, lib);
+  assert.equal(items[2].modified, true, 'changed by hand → *');
+  assert.equal(items[2].presetName, 'A');
+
+  const edited = M.clone(lib);
+  edited.Presets[0].Settings.Copies = 3;
+  edited.Presets[0].Settings.Tray = 'Tray 1';
+  edited.Presets[0].Name = 'A renamed';
+  M.libraryChanged(items, edited);
+  assert.equal(items[0].settings.Copies, 3, 'unchanged files follow the preset');
+  assert.equal(items[1].settings.Tray, 'Tray 1');
+  assert.equal(items[2].settings.Copies, 9, 'the * file keeps its own change');
+  assert.equal(items[2].presetName, 'A renamed');
+  assert.equal(items[2].modified, true);
+
+  M.resetToPreset([items[2]], edited);
+  assert.equal(items[2].modified, false);
+  assert.equal(items[2].settings.Copies, 3);
+
+  // set back by hand to the preset's value: no *
+  M.setField([items[1]], 'Copies', 7, edited);
+  M.setField([items[1]], 'Copies', 3, edited);
+  assert.equal(items[1].modified, false);
+
+  edited.Presets.shift();
+  M.libraryChanged(items, edited);
+  assert.equal(items[0].presetId, null, 'deleted preset: unlinked');
+  assert.equal(items[0].settings.Copies, 3, '... but the settings stay');
+  assert.equal(M.presetLabel(items[0]), 'Own settings');
+});
+
+test('a change in the panel touches only that setting, on every selected file', () => {
+  const { lib, a, b } = twoPresets();
+  const x = item(1), y = item(2);
+  M.applyPreset([x], a); M.applyPreset([y], b);
+  M.setField([x, y], 'Sides', 'LongEdge', lib);
+  assert.equal(x.settings.Sides, 'LongEdge');
+  assert.equal(y.settings.Sides, 'LongEdge');
+  assert.equal(x.settings.Copies, 2, 'other settings stay as they were');
+  assert.equal(y.settings.Copies, 5);
+  assert.deepEqual(M.shared([x, y], 'Copies'), { value: 2, mixed: true });
+  assert.deepEqual(M.shared([x, y], 'Sides'), { value: 'LongEdge', mixed: false });
+  assert.equal(M.differsFromPreset([x, y], 'Sides', lib), true);
+  assert.equal(M.differsFromPreset([x, y], 'Copies', lib), false);
+  M.setField([x], 'PageNumbers.Enabled', true, lib);
+  assert.equal(x.settings.PageNumbers.Enabled, true);
+  assert.equal(y.settings.PageNumbers.Enabled, false);
+});
+
+test('choosing a booklet switches on two-sided and landscape', () => {
+  const lib = { DefaultPresetId: null, Presets: [] };
+  const x = item(1);
+  M.setField([x], 'Layout', 'Booklet', lib);
+  assert.equal(x.settings.Sides, 'ShortEdge');
+  assert.equal(x.settings.Orientation, 'Landscape');
+  assert.equal(M.isTwoSided(x.settings), true);
+});
+
+test('normalize fills gaps from older files and drops wrong types', () => {
+  const s = M.normalize({ Copies: 4, Tray: 'Tray 3', PageNumbers: { Enabled: true, Digits: 'Khmer' }, Bogus: 1, Dpi: 'high' });
+  assert.equal(s.Copies, 4);
+  assert.equal(s.Tray, 'Tray 3');
+  assert.equal(s.PageNumbers.Enabled, true);
+  assert.equal(s.PageNumbers.Digits, 'Khmer');
+  assert.equal(s.PageNumbers.Format, '{page}');
+  assert.equal(s.Dpi, 300);
+  assert.equal('Bogus' in s, false);
+  assert.deepEqual(Object.keys(s), Object.keys(M.DEFAULTS), 'same key order as the engine, so equal settings compare equal');
+});
+
+test('presets.json from version 1 loads; starter presets; unique names; import', () => {
+  const v1 = { DefaultPresetId: 'p1', Presets: [{ Id: 'p1', Name: 'Book', Settings: { Layout: 'Booklet', Tray: 'Tray 2' } }, { Id: 'p2', Name: 'Label', Settings: { Copies: 5 } }] };
+  const lib = M.readLibrary(v1);
+  assert.equal(lib.Presets.length, 2);
+  assert.equal(M.defaultPreset(lib).Name, 'Book');
+  assert.equal(lib.Presets[0].Settings.Tray, 'Tray 2');
+  assert.equal(lib.Presets[1].Settings.Sides, 'OneSide');
+  assert.equal(M.readLibrary({ nope: 1 }), null);
+
+  const s = M.starterLibrary();
+  assert.equal(s.Presets.length, 3);
+  assert.equal(M.defaultPreset(s).Name, 'Normal – 1 side');
+  assert.equal(s.Presets[2].Settings.Layout, 'Booklet');
+
+  assert.equal(M.uniqueName(lib, 'book'), 'book (2)');
+  assert.equal(M.uniqueName(lib, 'Other'), 'Other');
+  const n = M.importInto(lib, { Presets: v1.Presets });
+  assert.equal(n, 2);
+  assert.deepEqual(lib.Presets.map(p => p.Name), ['Book', 'Label', 'Book (2)', 'Label (2)']);
+  assert.equal(new Set(lib.Presets.map(p => p.Id)).size, 4, 'imported presets get their own ids');
+  assert.throws(() => M.importInto(lib, { x: 1 }), /not a Sievphov presets file/);
+});
+
+test('job files: same shape as version 1, presets found by id or by name', () => {
+  const { lib, a } = twoPresets();
+  const x = item(1), y = item(2, { checked: false });
+  M.applyPreset([x], a);
+  M.setField([y], 'Copies', 4, lib);
+  const job = M.toJob([x, y]);
+  assert.equal(job.Version, 1);
+  assert.equal(job.Items[0].FilePath, '/x/1.pdf');
+  assert.equal(job.Items[0].PresetId, 'a');
+  assert.equal(job.Items[1].Checked, false);
+  assert.equal(job.Items[1].Modified, true);
+
+  const back = M.fromJob(JSON.parse(JSON.stringify(job)), lib);
+  assert.equal(back[0].presetName, 'A');
+  assert.equal(back[0].modified, false);
+  assert.equal(back[1].checked, false);
+  assert.equal(back[1].settings.Copies, 4);
+
+  // the same job on another PC: preset ids differ, names match
+  const other = { DefaultPresetId: 'z', Presets: [{ Id: 'z', Name: 'a', Settings: M.clone(a.Settings) }] };
+  const moved = M.fromJob(job, other);
+  assert.equal(moved[0].presetId, 'z');
+  assert.equal(moved[0].modified, false);
+  assert.throws(() => M.fromJob({ Items: 3 }, lib), /not a Sievphov job file/);
+});
+
+test('report CSV quotes commas and quotes; per-printer totals; Khmer digits', () => {
+  const csv = M.reportCsv([{ fileName: 'a, b.pdf', folder: 'C:\\x', printer: 'HP', preset: 'Book "2"', status: 'Printed', message: '', pages: 3, sheets: 2, copies: 1 }]);
+  assert.match(csv, /^File,Folder,Printer,Preset,Status/);
+  assert.match(csv, /"a, b.pdf"/);
+  assert.match(csv, /"Book ""2"""/);
+  const items = [item(1), item(2, { settings: M.normalize({ PrinterName: 'Tally' }) }), item(3)];
+  const rows = M.byPrinter(items, [{ pagesPrinted: 10, sheets: 5 }, { pagesPrinted: 4, sheets: 4 }, { pagesPrinted: 2, sheets: 1 }], 'HP');
+  assert.deepEqual(rows, [{ printer: 'HP', files: 2, pages: 12, sheets: 6 }, { printer: 'Tally', files: 1, pages: 4, sheets: 4 }]);
+  assert.equal(M.khmerDigits('Page 120'), 'Page ១២០');
+});

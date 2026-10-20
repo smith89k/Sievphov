@@ -2,57 +2,63 @@
 
 # Sievphov (សៀវភៅ)
 
-Print many PDF files in one go on Windows. Each file has its own printer settings, and **presets** apply a saved set of settings to many selected files with one click.
-Made for printing books (Khmer books, sastra): two-sided, booklets, page numbers with Khmer digits, and watermarks.
+Print many PDF files in one go on Windows. Each file has its own printer, **paper tray**, paper, sides, copies and pages,
+and **presets** give a saved set of settings to many selected files with one click.
+Made for printing books (Khmer books, sastra): two-sided, booklets, page numbers in Khmer digits, watermarks.
 
-## Get the program
+Sievphov looks and works like its sister apps **Bohpum** and **Sastra PDF**: the same title bar, fonts, boxes and
+light / dark theme, with the logo's purple.
 
-1. Open the repository on GitHub → **Actions** → **Build Windows app**. The build only runs when started by hand: click **Run workflow** (or open the latest green run).
-2. Download **Sievphov-win-x64** and unzip it. You get one file, `Sievphov.exe`.
-3. Copy `Sievphov.exe` anywhere and double-click it. Nothing needs to be installed; it runs on 64-bit Windows 10 and 11.
+## Get it
 
-Windows may show "Windows protected your PC" the first time, because the program is not signed. Click **More info → Run anyway**.
+- **Installer:** run `build.bat` on a Windows PC (it needs Node.js, pnpm and the .NET 8 SDK; it says what is missing).
+  The installer lands in `dist\Sievphov-Setup-<version>.exe`.
+- Or on GitHub: **Actions → Build Windows app → Run workflow** (only runs when started by hand), then download
+  **Sievphov-Setup** from the finished run.
+- From source while working on it: `run.bat` (or `pnpm install`, `pnpm run engine`, `pnpm start`).
+
+Windows may show "Windows protected your PC" for the unsigned installer: **More info → Run anyway**.
 
 ## How to use
 
 | To do this | Do this |
 |---|---|
-| Add files | Drag PDFs or folders onto the list, or use **+ Files** / **+ Folder** (choose "Include subfolders" and a preset) |
-| Choose what to print | Tick the files in the ✓ column. Only ticked files print. |
-| Use a preset | Select files (click, Ctrl+click, Shift+click, Ctrl+A) → pick a preset → **Apply to selected**. Or right-click → **Apply preset ▸**, or press **Ctrl+1 … Ctrl+9**. |
-| Change one file | Double-click it (or Enter) → **File settings**. Values that differ from its preset are **bold**; the Preset column then shows `*`. |
-| Change many files | Select them → **File settings…** → **Apply to all selected**, or use **Back / Next** to go through them one by one. |
-| Make or edit presets | **Manage presets…** New, Duplicate, Rename, Delete, ▲▼, **Set as default** (given to new files), **Import / Export** to copy presets to another PC. |
-| Save a preset from a file | Right-click the file → **Save as preset…** |
-| Check before printing | **Preview** shows every sheet as it will print. **Estimate** shows pages and paper per printer. |
-| Print | **▶ PRINT** (Ctrl+P). **Pause** and **■ Stop** work while printing. At the end you get a report you can save for Excel. |
-| Reuse a list | **Save job…** saves the list with every file's own settings as a `.svpv` file. **More ▾ → Open .svpv files with Sievphov** makes double-clicking a job open it and gives job files their own icon. |
+| Add files | Drag PDFs or folders onto the window, or **Add files** (Ctrl+O) / **Add folder** (Ctrl+Shift+O: include subfolders, pick a preset) |
+| Choose what prints | Tick the files. **▶ Print N files** at the bottom right prints every ticked file (Ctrl+P). |
+| Use a preset | Select files (click, Ctrl+click, Shift+click, Ctrl+A) → pick a preset in **Presets** → **Apply to selected**. Or right-click → a preset, or **Ctrl+1 … Ctrl+9**. |
+| Change settings | Select one or more files: the panel on the right shows their settings. A change applies at once to every selected file, only for that setting. Values that differ from the file's preset are **bold** with a dot; the Preset column shows `*`; **Reset to preset** puts them back. "Files differ" / **Mixed** means the selected files have different values. |
+| Make or edit presets | **Manage presets…**: New, Duplicate, Delete, Up / Down, Default (given to files you add), Import / Export (copy presets to another PC). **Save as preset…** and **Update preset** take the selected file's settings. |
+| Check before printing | **Preview** (F5) shows every sheet as it will print, on the file's printer and paper. **Estimate** shows pages and paper per printer. |
+| While printing | **Pause** / **Stop** at the bottom right. At the end a report lists what printed and what failed; **Save as CSV (Excel)**. |
+| After printing | In the Print box: do nothing, or move / copy the printed PDFs to a folder. |
+| Reuse a list | **Save job** (Ctrl+S) saves the list with every file's own settings as `.svpv`; double-click a `.svpv` to open it. |
+| Order | Drag rows, ▲ ▼ (Alt+↑ / Alt+↓), or click a column heading to sort. |
 
-When you edit a preset, every file using it **without** a `*` gets the new settings. Files with a `*` keep their own changes.
+When a preset is edited, files using it **without** a `*` get the new settings; files with a `*` keep their own changes.
 
-### Settings in a preset (and per file)
+Settings per file and in presets: printer, copies (collated or not), all / odd / even / custom pages (`1-5, 8, 12-last`),
+reverse order, **paper tray**, paper size, one side / both sides (long or short edge), orientation (auto turns pages to
+fit), fit / shrink / actual size / fill / zoom, position, color or grayscale, quality (150 / 300 / 600 dpi), layout
+(normal, several pages per sheet, **booklet** with left / right binding), page numbers (position incl. the outside edge
+of a book, `ទំព័រ {page}` / `{page} / {pages}`, Khmer digits, start number, font, size, color), text watermark and logo.
 
-- **Printer & pages:** printer, copies, collate, all / odd / even / range (`1-5, 8, 12-last`), reverse order
-- **Paper & tray:** paper size, **paper tray**, orientation (auto turns pages to fit), one side / both sides (long or short edge), fit / shrink / actual size / fill / zoom, alignment, color or grayscale, quality (150 / 300 / 600 dpi)
-- **Layout:** normal, several pages per sheet (columns × rows, order, gap, borders), **booklet** (bind left/right, middle gap)
-- **Page numbers:** position (including "outside" for books), format such as `ទំព័រ {page}` or `{page} / {pages}`, Khmer digits ១ ២ ៣, start number, font, size, color
-- **Watermark:** text with `{filename} {name} {date} {time} {page} {pages}`, font, size, color, see-through %, angle, position
-- **Logo:** a PNG/JPG picture, width, position, see-through %
-
-Booklets: pages are put two per side in folding order (8|1, 2|7, …). Print on both sides, flipping on the short edge, then fold the stack in the middle.
-
-### Where things are saved
-
-Presets and options are kept in `%AppData%\Sievphov` (**More ▾ → Open settings folder**). Saved passwords for locked PDFs are stored there in plain text.
+Presets and options are in `%AppData%\Sievphov` (presets.json from version 1 still loads). Saved passwords for locked
+PDFs are stored there in plain text.
 
 ## For developers
 
-- `art/`: the logo and `.svpv` file icon (original artwork plus cut-out PNGs). The `.ico` files are in `src/Sievphov`.
+```
+main.js        Electron main: window + title bar, ☰ menu, dialogs, presets/settings/jobs files, the engine
+engine.js      talks to the print engine over stdin/stdout; has a stand-in engine (SIEVPHOV_FAKE_ENGINE=1, or not Windows)
+preload.js     window.sievphov
+app/           the screens: index.html, app.css, app.js, model.js (preset and job rules), notes.js (What's new)
+engine/        C#: Sievphov.Core (settings, page ranges, booklet / N-up, PDF reading with PDFium) and
+               Sievphov.Engine (printing per file with its own printer, tray, paper, sides; preview; --selftest)
+tests/         node tests (pnpm test), the window test (pnpm run test:ui, Linux: xvfb-run -a), engine-real.test.js (Windows)
+docs/superpowers/specs/  design notes
+art/           the logo and the .svpv file icon (original artwork and cut-out PNGs)
+```
 
-- `src/Sievphov.Core`: settings, presets, page ranges, booklet/N-up order, estimates, job files, PDF reading (PDFium via PDFtoImage). Runs on any OS.
-- `src/Sievphov`: the WPF app and the print engine (System.Drawing printing, one print job per file).
-- `tests/Sievphov.Tests`: `dotnet test`
-
-Build the exe on Windows with `build\publish.ps1`, or anywhere with
-`dotnet publish src/Sievphov -p:PublishProfile=win-x64` (output: `dist/Sievphov/Sievphov.exe`).
-`Sievphov.exe --selftest <folder>` prints sample books to "Microsoft Print to PDF" without using paper; the GitHub build runs it.
+- `pnpm run engine` builds `engine-dist/Sievphov.Engine.exe` (runs the C# tests first); `pnpm run dist` builds the installer.
+- `engine-dist\Sievphov.Engine.exe --selftest <folder>` prints sample books to "Microsoft Print to PDF" without paper.
+- The GitHub workflow runs only when started by hand.

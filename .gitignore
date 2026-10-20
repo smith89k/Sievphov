@@ -1,7 +1,8 @@
+node_modules/
+dist/
+engine-dist/
 bin/
 obj/
 *.user
 .vs/
-publish/
 TestResults/
-dist/

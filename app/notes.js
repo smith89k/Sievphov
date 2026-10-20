@@ -1,0 +1,33 @@
+// Sievphov — What's new: what changed in each version, newest first, and when the window shows by itself
+// (as in Sastra PDF and Bohpum). Written by hand at release time, in plain words: what someone can now do. Text only.
+// The newest entry must be package.json's version: scripts/check-notes.js stops `pnpm run dist` otherwise.
+// Loaded by index.html before its main script; the window is openNotes in app.js.
+(() => {
+'use strict';
+
+const KINDS = Object.freeze(['new', 'improved', 'fixed', 'removed']);   // the window lists them in this order, each tagged
+const N = (version, date, notes) => Object.freeze({ version, date, notes: Object.freeze(notes.map(([kind, text]) => Object.freeze({ kind, text }))) });
+
+const NOTES = Object.freeze([
+  N('2.0.0', '2026-10-20', [
+    ['new', 'A new look, the same as Sastra PDF and Bohpum: Sievphov draws its own title bar, uses the same fonts and boxes, and has a light and a dark theme (the button at the top right, or ☰ › View › Theme).'],
+    ['new', 'File settings are now a panel on the right. Select one or more files and change anything there: it applies at once to every selected file, only for the setting you changed. Values that differ from the file\'s preset are bold, and Reset to preset puts them back.'],
+    ['new', 'Presets in the same panel: pick one and click Apply to selected, or press Ctrl+1 … Ctrl+9. Each preset keeps the printer, paper tray, paper, sides, copies, pages, layout, page numbers and watermark.'],
+    ['new', 'Drag files in the list to put them in another order, or click a column heading to sort.'],
+    ['improved', 'Preview fills the window, like the Print screen in Sastra PDF: every sheet exactly as it will print, on the file\'s own printer and paper.'],
+    ['improved', 'Every message is now in Sievphov\'s own boxes, never a Windows message box.']
+  ]),
+  N('1.0.0', '2026-10-19', [
+    ['new', 'The first version: print many PDF files in one go, each with its own printer, tray, paper, sides, copies and pages; presets; booklets; several pages per sheet; page numbers in Khmer digits; text and picture watermarks; preview, estimate and a report after printing; saved jobs (.svpv).']
+  ])
+]);
+
+// Order in the list is the only notion of "older": nothing compares version numbers.
+const noteFor = v => NOTES.find(e => e.version === v) || null;
+// the versions before v; all of them when v has no entry, so the menu always has something to show
+const earlierNotes = v => { const i = NOTES.findIndex(e => e.version === v); return i < 0 ? NOTES.slice() : NOTES.slice(i + 1); };
+// inequality, not "newer": a downgrade or a lost memory shows the notes once, then repairs itself
+const shouldShow = (v, lastSeen) => !!noteFor(v) && lastSeen !== v;
+
+window.SievphovNotes = { KINDS, NOTES, noteFor, earlierNotes, shouldShow };
+})();

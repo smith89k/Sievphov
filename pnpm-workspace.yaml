@@ -1,0 +1,13 @@
+# pnpm settings for this project (pnpm reads them here, not from package.json or .npmrc).
+
+# electron-builder's @electron/get pulls in global-agent (build time only); 4.1.3 clears the old
+# sprintf-js audit warnings (as in Sastra PDF and Bohpum).
+overrides:
+  global-agent: 4.1.3
+
+# Packages allowed to run their own install scripts. electron-winstaller's only picks 7-Zip for
+# Squirrel installers, which this project never builds (NSIS only). Electron's binary is fetched by
+# scripts/ensure-electron.js.
+allowBuilds:
+  electron: false
+  electron-winstaller: false

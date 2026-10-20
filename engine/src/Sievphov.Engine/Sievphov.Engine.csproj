@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The print engine: a hidden helper that Sievphov (Electron) starts and talks to over stdin / stdout.
+       WinExe so no console window ever flashes; WPF only for Khmer text shaping of page numbers and watermarks. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- Lets the engine be built on Linux/macOS too (it still only runs on Windows). -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>Sievphov.Engine</AssemblyName>
+    <RootNamespace>Sievphov</RootNamespace>
+    <ApplicationIcon>..\..\..\build\icon.ico</ApplicationIcon>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="8.0.32" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sievphov.Core\Sievphov.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <!-- Symbol files are not needed by users (SkiaSharp alone ships an 89 MB one). -->
+  <Target Name="RemoveSymbolsFromPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <_SymbolsInPublish Include="$(PublishDir)*.pdb" />
+    </ItemGroup>
+    <Delete Files="@(_SymbolsInPublish)" />
+  </Target>
+
+</Project>
