@@ -233,7 +233,13 @@ body.dropping .list::after{content:"Drop PDF files or folders to add them";posit
 .sel-head b{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sel-head small{color:var(--ink-3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sel-head small.bad{color:var(--err);white-space:normal}
-.preset-line{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface-2);font-size:12.5px;color:var(--ink-2)}
+.preset-line{display:flex;align-items:center;gap:8px;justify-content:space-between;min-height:40px;padding:6px 6px 6px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface-2);font-size:12.5px;color:var(--ink-2)}
+.preset-line .pl{display:flex;align-items:center;gap:8px;min-width:0;flex:1;white-space:nowrap}
+.preset-line .pl .k{flex:none}
+.preset-line .pl .chip{min-width:0;flex:0 1 auto}
+.preset-line .reset{flex:none;height:28px;padding:0 9px;gap:5px;border:1px solid var(--accent-line);border-radius:6px;background:var(--field);color:var(--accent);font-size:12px;font-weight:500}
+.preset-line .reset:hover{background:var(--accent-soft);border-color:var(--accent)}
+.preset-line .reset svg{width:14px;height:14px}
 .copies-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .copies-row input{width:84px!important}
 /* the print bar at the foot of the panel: what will happen · Print / Pause · Stop */

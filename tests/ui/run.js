@@ -94,6 +94,10 @@ app.whenReady().then(async () => {
     const r0 = await rowText(0);
     check(r0.includes('Tray 2') && r0.includes('*'), 'changed by hand: Tray column and * in the Preset column');
     check(await js(`[...document.querySelectorAll('#settingsBox .flabel.changed')].map(l => l.textContent).join('|')`).then(t => t.includes('Paper tray') && t.includes('Copies')), 'changed settings are bold');
+    check(await js(`(() => { const l = document.querySelector('.preset-line'), r = document.getElementById('pReset'); return !r.hidden && l.offsetHeight < 46 && Math.abs(r.getBoundingClientRect().top - l.querySelector('.chip').getBoundingClientRect().top) < 8; })()`), 'Preset line: preset and Reset stay on one line');
+    await js(`(() => { document.documentElement.style.setProperty('--tools-w', '300px'); })()`); await sleep(200);
+    check(await js(`document.querySelector('.preset-line').offsetHeight < 46`), 'Preset line stays one line in the narrowest panel');
+    await js(`document.documentElement.style.removeProperty('--tools-w')`);
     await shot('03-file-settings-changed');
 
     // Page numbers section: switch on, Khmer digits

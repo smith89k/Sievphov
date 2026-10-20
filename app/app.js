@@ -814,7 +814,7 @@ function buildPanel() {
   }
   const head = document.createElement('section');
   head.className = 'tsec';
-  head.innerHTML = `<div class="sel-head"><span class="doc">${svg(items.length > 1 ? 'pages' : 'doc')}</span><span class="nm"><b></b><small></small></span></div><div class="preset-line"><span class="pl"></span><button class="btn link" id="pReset">Reset to preset</button></div>`;
+  head.innerHTML = `<div class="sel-head"><span class="doc">${svg(items.length > 1 ? 'pages' : 'doc')}</span><span class="nm"><b></b><small></small></span></div><div class="preset-line"><span class="pl"></span><button class="btn reset" id="pReset" title="Put back the preset's settings: undo the changes made by hand (*)">${svg('reset')}<span>Reset</span></button></div>`;
   box.appendChild(head);
   editor = buildEditor(box, {
     items: selected,
@@ -839,9 +839,10 @@ function syncPanel() {
     const names = [...new Set(items.map(it => it.presetName ?? null))];
     const pl = $('#settingsBox .pl');
     const anyMod = items.some(it => it.modified && it.presetId), linked = items.some(it => it.presetId);
+    const tip = anyMod ? ' title="* = changed by hand"' : '';
     pl.innerHTML = names.length === 1 && names[0] != null
-      ? `Preset <span class="chip preset-chip">${esc(names[0])}${anyMod ? '<span class="star">*</span>' : ''}</span>`
-      : names.length > 1 ? 'Presets <span class="chip own">Mixed</span>' : '<span class="chip own">Own settings — no preset</span>';
+      ? `<span class="k">Preset</span><span class="chip preset-chip"${tip}><span class="cl">${esc(names[0])}</span>${anyMod ? '<span class="star">*</span>' : ''}</span>`
+      : names.length > 1 ? '<span class="k">Presets</span><span class="chip own"><span class="cl">Mixed</span></span>' : '<span class="chip own"><span class="cl">Own settings — no preset</span></span>';
     $('#pReset').hidden = !(linked && anyMod);
   }
   editor.sync();
