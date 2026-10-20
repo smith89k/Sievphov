@@ -15,7 +15,9 @@ light / dark theme, with the logo's purple.
   The installer lands in `dist\Sievphov-Setup-<version>.exe`.
 - Or on GitHub: **Actions → Build Windows app → Run workflow** (only runs when started by hand), then download
   **Sievphov-Setup** from the finished run.
-- From source while working on it: `run.bat` (or `pnpm install`, `pnpm run engine`, `pnpm start`).
+- From source while working on it: `run.bat`, or `pnpm install` then `pnpm start`. Both build the print engine
+  (`engine-dist\Sievphov.Engine.exe`) when it is missing or older than its code; that needs the .NET 8 SDK
+  (`winget install Microsoft.DotNet.SDK.8`). `pnpm run engine` builds it by hand.
 
 Windows may show "Windows protected your PC" for the unsigned installer: **More info → Run anyway**.
 

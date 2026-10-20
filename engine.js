@@ -10,7 +10,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-function createEngine({ exe, fake = false, log = () => {} }) {
+function createEngine({ exe, fake = false, log = () => {}, missing = 'The print engine is missing (Sievphov.Engine.exe). Reinstall Sievphov.' }) {
   const listeners = new Set();
   const emit = ev => { for (const fn of listeners) { try { fn(ev); } catch (e) { log('listener: ' + e.message); } } };
   if (fake) return fakeEngine(emit, listeners);
@@ -20,7 +20,7 @@ function createEngine({ exe, fake = false, log = () => {} }) {
 
   function start() {
     if (child) return child;
-    if (!fs.existsSync(exe)) throw Object.assign(new Error('The print engine is missing (Sievphov.Engine.exe). Reinstall Sievphov.'), { reason: 'engine' });
+    if (!fs.existsSync(exe)) throw Object.assign(new Error(missing), { reason: 'engine' });
     log('engine: start ' + exe);
     child = spawn(exe, [], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     child.stdout.setEncoding('utf8');

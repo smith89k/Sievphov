@@ -26,7 +26,9 @@ const ENGINE_EXE = app.isPackaged
 const FAKE = process.env.SIEVPHOV_FAKE_ENGINE === '1' || process.platform !== 'win32';
 const logFile = path.join(os.tmpdir(), 'Sievphov', 'engine.log');
 const log = line => { try { fsSync.mkdirSync(path.dirname(logFile), { recursive: true }); fsSync.appendFileSync(logFile, `${new Date().toISOString()} ${line}\n`); } catch {} };
-const engine = createEngine({ exe: ENGINE_EXE, fake: FAKE, log });
+const engine = createEngine({ exe: ENGINE_EXE, fake: FAKE, log, missing: app.isPackaged
+  ? 'The print engine is missing (Sievphov.Engine.exe). Reinstall Sievphov.'
+  : 'The print engine is not built yet. Close Sievphov and run "pnpm run engine" (needs the .NET 8 SDK: winget install Microsoft.DotNet.SDK.8), then start it again.' });
 engine.onEvent(ev => { if (win) win.webContents.send('engine-event', ev); });
 
 // Only one Sievphov window; a second launch (double-clicked .svpv, "Open with") hands its files to the first.

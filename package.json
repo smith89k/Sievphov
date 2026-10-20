@@ -9,8 +9,8 @@
   "private": true,
   "packageManager": "pnpm@12.4.1",
   "scripts": {
-    "postinstall": "node scripts/ensure-electron.js",
-    "start": "electron .",
+    "postinstall": "node scripts/ensure-electron.js && node scripts/build-engine.js --if-needed --no-test --warn",
+    "start": "node scripts/build-engine.js --if-needed --no-test && electron .",
     "engine": "node scripts/build-engine.js",
     "test": "node --test \"tests/*.test.js\"",
     "test:ui": "electron tests/ui/run.js",

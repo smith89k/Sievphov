@@ -13,8 +13,5 @@ if not exist node_modules (
   echo Installing packages for the first run...
   call pnpm install || (pause & exit /b 1)
 )
-if not exist engine-dist\Sievphov.Engine.exe (
-  echo Building the print engine for the first run...
-  call pnpm run engine || (pause & exit /b 1)
-)
-call pnpm start
+rem pnpm start builds the print engine first when it is missing or out of date
+call pnpm start || pause
