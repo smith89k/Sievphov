@@ -105,6 +105,12 @@ app.whenReady().then(async () => {
     await sleep(200);
     await js(`(() => { const b = [...document.querySelectorAll('#settingsBox .seg button')].find(b => b.textContent === '១ ២ ៣'); b.click(); })()`);
     await js(`document.querySelector('#settingsBox .tsec[data-sec="numbers"]').scrollIntoView()`);
+    check(await js(`(() => { const r = [...document.querySelectorAll('#settingsBox .row2')].find(r => r.querySelector('.chkf') && r.querySelector('input[type=number]'));
+      if (!r) return false; const sec = r.closest('.tsec'), box = r.closest('.subbox'), wasF = sec.classList.contains('folded'), wasH = box?.hidden;
+      sec.classList.remove('folded'); if (box) box.hidden = false; r.scrollIntoView();
+      const a = r.querySelector('input[type=number]').getBoundingClientRect(), b = r.querySelector('.chkf input').getBoundingClientRect();
+      const ok = a.height > 0 && Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) <= 2;
+      sec.classList.toggle('folded', wasF); if (box) box.hidden = wasH; return ok; })()`), 'a tick box next to a text box lines up with the box');
     await shot('04-page-numbers');
     await js(`document.getElementById('toolsScroll').scrollTop = 0`);
 

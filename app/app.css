@@ -208,6 +208,8 @@ body.dropping .list::after{content:"Drop PDF files or folders to add them";posit
 .field input::placeholder{color:var(--ink-3)}
 .field input.is-mixed::placeholder{color:var(--warn)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+/* a tick box next to a labelled field sits on the field's line, not on its label's */
+.row2>.chkf{align-self:end;justify-content:center;min-height:30px}
 .seg{display:flex;border:1px solid var(--line-2);border-radius:6px;background:var(--field);overflow:hidden}
 .seg button{flex:1;height:28px;padding:0 6px;border:0;background:transparent;color:var(--ink-2);cursor:pointer;font-size:12px;white-space:nowrap}
 .seg button+button{border-left:1px solid var(--line)}
