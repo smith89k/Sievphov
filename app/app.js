@@ -105,13 +105,12 @@ function openBox(cls, html, { onCancel, full = false } = {}) {
   const bg = document.createElement('div'); bg.className = 'modal-bg' + (full ? ' full-screen' : '');
   bg.innerHTML = `<div class="modal ${cls}" role="dialog" aria-modal="true">${html}</div>`;
   const box = bg.firstElementChild;
-  const close = () => { bg.remove(); document.removeEventListener('keydown', key, true); $('#menubar').inert = !!document.querySelector('.modal-bg.full-screen'); back?.focus?.({ preventScroll: true }); };
+  const close = () => { bg.remove(); document.removeEventListener('keydown', key, true); back?.focus?.({ preventScroll: true }); };
   const cancel = () => (onCancel ? onCancel() : close());
   const key = e => { if (e.key === 'Escape' && bg === [...document.querySelectorAll('.modal-bg')].pop()) { e.stopPropagation(); e.preventDefault(); cancel(); } };
   bg.addEventListener('mousedown', e => { if (e.target === bg && !full) cancel(); });
   document.addEventListener('keydown', key, true);
   document.body.appendChild(bg);
-  if (full) $('#menubar').inert = true;
   return { bg, box, close };
 }
 // buttons = [[label, 'outline'|'primary'], …]; the first is Cancel (also Esc / outside), the last has the focus → index
@@ -184,7 +183,7 @@ function statusOf(it) {
 function rowHtml(it, i) {
   const s = it.settings, st = statusOf(it);
   const chip = it.presetName != null
-    ? `<span class="chip preset" title="${esc(it.presetName + (it.modified ? ' — changed by hand' : ''))}"><span class="cl">${esc(it.presetName)}</span>${it.modified ? '<span class="star">*</span>' : ''}</span>`
+    ? `<span class="chip preset-chip" title="${esc(it.presetName + (it.modified ? ' — changed by hand' : ''))}"><span class="cl">${esc(it.presetName)}</span>${it.modified ? '<span class="star">*</span>' : ''}</span>`
     : `<span class="chip own"><span class="cl">${esc(M.presetLabel(it))}</span></span>`;
   return `<div class="row${state.sel.has(it.id) ? ' sel' : ''}${it.checked ? '' : ' off'}" data-id="${it.id}" draggable="true" role="option" aria-selected="${state.sel.has(it.id)}" title="${esc(it.path)}">
     <span class="center"><input type="checkbox" class="tick" ${it.checked ? 'checked' : ''} ${it.pageCount ? '' : 'disabled'} aria-label="Print this file"></span>
@@ -216,7 +215,7 @@ function updateButtons() {
   const sel = state.sel.size, any = state.items.length, idle = !state.printing;
   $('#bRemove').disabled = !sel || !idle; $('#bUp').disabled = !sel || !idle; $('#bDown').disabled = !sel || !idle;
   $('#bPreview').disabled = !any; $('#bEstimate').disabled = !ticked().length;
-  $('#bSaveJob').disabled = !any; $('#bSaveMore').disabled = !any;
+  $('#bSaveJob').disabled = !any; $('#bPrintTb').disabled = !ticked().length || !idle;
   for (const id of ['#bAddFiles', '#bAddFolder', '#bOpenJob']) $(id).disabled = !idle;
 }
 /** Everything that shows item state: rows, panel, totals; and new estimates from the engine. */
@@ -231,6 +230,7 @@ function updateTitle() {
   const name = state.jobPath ? state.jobPath.split(/[\\/]/).pop().replace(/\.svpv$/i, '') : null;
   const t = name ? `${state.jobDirty ? '• ' : ''}${name} — ${tag}` : tag;
   document.title = t; desk?.setTitle(t);
+  $('#doc-title').textContent = name ? `${name}${state.jobDirty ? ' •' : ''}` : state.items.length ? `Untitled job${state.jobDirty ? ' •' : ''}` : '';
 }
 
 /* ---------- selection ---------- */
@@ -338,10 +338,10 @@ rowsEl.addEventListener('dragend', endRowDrag);
 
 /* ---------- files from Explorer: drop anywhere on the window ---------- */
 const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
-window.addEventListener('dragover', e => { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = state.printing ? 'none' : 'copy'; $('#app').classList.add('dropping'); });
-window.addEventListener('dragleave', e => { if (!e.relatedTarget) $('#app').classList.remove('dropping'); });
+window.addEventListener('dragover', e => { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = state.printing ? 'none' : 'copy'; document.body.classList.add('dropping'); });
+window.addEventListener('dragleave', e => { if (!e.relatedTarget) document.body.classList.remove('dropping'); });
 window.addEventListener('drop', e => {
-  $('#app').classList.remove('dropping');
+  document.body.classList.remove('dropping');
   if (!hasFiles(e)) return;
   e.preventDefault();
   if (state.printing || !desk) return;
@@ -492,7 +492,9 @@ function renderStatus() {
   $('#stFiles').textContent = n ? `${plural(n, 'file')} · ${t} ticked` : 'No files';
   $('#stSel').textContent = state.sel.size ? `${state.sel.size} selected` : '';
   const b = $('#stBusy');
-  b.className = state.busy || state.printing ? 'busy' : '';
+  b.className = 'grow' + (state.busy || state.printing ? ' busy' : '');
+  const tt = totals();
+  $('#stSheets').textContent = tt.files ? `${plural(tt.pages, 'page')} · about ${plural(tt.sheets, 'sheet')}` : '';
   b.innerHTML = state.busy || state.printing ? `<span class="spin"></span><span>${esc(state.printing ? state.printing.text || 'Printing…' : state.busyText)}</span>` : '';
   $('#stEngine').textContent = desk?.fakeEngine ? 'Stand-in engine — nothing is printed' : '';
 }
@@ -773,37 +775,69 @@ function buildEditor(root, ctx, { sections = SECTIONS, folded = true } = {}) {
 
 /* ---------- the panel: presets on top, then the selected files' settings ---------- */
 let editor = null;
-function presetOpts() {
-  return state.lib.Presets.map((p, i) => ({ v: p.Id, t: p.Name, s: (p.Id === state.lib.DefaultPresetId ? 'Default · ' : '') + (i < 9 ? `Ctrl+${i + 1} · ` : '') + describe(p.Settings), ic: 'stack' }));
-}
-function renderPresetBox() {
-  const box = $('#presetBox');
+/** The Presets panel (left, like Bohpum's Pages panel): click picks, double-click applies to the selected files. */
+function renderPresets() {
   if (!state.presetPick || !M.findPreset(state.lib, state.presetPick.Id)) state.presetPick = M.defaultPreset(state.lib) || state.lib.Presets[0] || null;
-  const opts = presetOpts(), n = state.sel.size;
-  box.innerHTML = `<div class="field" style="margin-bottom:10px"><select class="big" id="presetSel" aria-label="Preset"><button><selectedcontent></selectedcontent></button>${opts.map(o => `<option value="${esc(o.v)}"><span class="ic">${svg(o.ic)}</span><span class="t"><b>${esc(o.t)}</b><small>${esc(o.s)}</small></span></option>`).join('')}</select></div>
-    <div class="grid2">
-      <button class="tbtn primary" id="pApply" ${n && state.presetPick && !state.printing ? '' : 'disabled'}><svg class="i" viewBox="0 0 24 24">${ICONS.check}</svg><span>${n > 1 ? `Apply to ${n} files` : 'Apply to selected'}</span></button>
-      <button class="tbtn" id="pManage"><svg class="i" viewBox="0 0 24 24">${ICONS.edit}</svg><span>Manage presets…</span></button>
-      <button class="tbtn" id="pSaveAs" ${n === 1 ? '' : 'disabled'} title="Save the selected file's settings as a new preset"><svg class="i" viewBox="0 0 24 24">${ICONS.plus}</svg><span>Save as preset…</span></button>
-      <button class="tbtn" id="pUpdate" ${n === 1 && state.presetPick ? '' : 'disabled'} title="Give the chosen preset the selected file's settings"><svg class="i" viewBox="0 0 24 24">${ICONS.save}</svg><span>Update preset</span></button>
-    </div>`;
-  const sel = box.querySelector('#presetSel');
-  if (state.presetPick) sel.value = state.presetPick.Id;
-  sel.addEventListener('change', () => { state.presetPick = M.findPreset(state.lib, sel.value); });
-  box.querySelector('#pApply').onclick = () => state.presetPick && applyPresetCmd(state.presetPick);
-  box.querySelector('#pManage').onclick = () => openPresetManager();
-  box.querySelector('#pSaveAs').onclick = saveAsPresetCmd;
-  box.querySelector('#pUpdate').onclick = updatePresetCmd;
+  const list = $('#presetList'), n = state.sel.size;
+  const uses = id => state.items.filter(it => it.presetId === id).length;
+  $('#presetCount').textContent = state.lib.Presets.length;
+  list.innerHTML = state.lib.Presets.map((p, i) => {
+    const u = uses(p.Id);
+    return `<div class="preset${state.presetPick && p.Id === state.presetPick.Id ? ' on' : ''}" data-id="${esc(p.Id)}" role="option" tabindex="0" aria-selected="${state.presetPick?.Id === p.Id}" title="Double-click to apply to the selected files">
+      <b class="pn">${esc(p.Name)}</b>
+      <small>${esc(describe(p.Settings))}</small>
+      <div class="pt">${p.Id === state.lib.DefaultPresetId ? '<span class="def" title="Given to files you add">Default</span>' : ''}${u ? `<span class="uses">${plural(u, 'file')}</span>` : ''}${i < 9 ? `<span class="kb">Ctrl+${i + 1}</span>` : ''}</div></div>`;
+  }).join('') || '<p class="empty-props">No presets yet. Select a file and click + to save its settings as a preset.</p>';
+  const ap = $('#pApply');
+  ap.disabled = !n || !state.presetPick || !!state.printing;
+  ap.querySelector('span').textContent = n > 1 ? `Apply to ${n} files` : 'Apply to selected';
+  $('#pNew').disabled = n !== 1 || !!state.printing;
+  $('#pManage').disabled = !!state.printing;
 }
+const presetAt = e => M.findPreset(state.lib, e.target.closest('.preset')?.dataset.id);
+$('#presetList').addEventListener('click', e => { const p = presetAt(e); if (p) { state.presetPick = p; renderPresets(); } });
+$('#presetList').addEventListener('dblclick', e => { const p = presetAt(e); if (p) applyPresetCmd(p); });
+$('#presetList').addEventListener('keydown', e => {
+  const p = presetAt(e); if (!p) return;
+  if (e.key === 'Enter') { e.preventDefault(); applyPresetCmd(p); }
+  if (e.key === ' ') { e.preventDefault(); state.presetPick = p; renderPresets(); $(`.preset[data-id="${p.Id}"]`)?.focus(); }
+});
+$('#presetList').addEventListener('contextmenu', e => {
+  const p = presetAt(e); if (!p) return;
+  e.preventDefault();
+  state.presetPick = p; renderPresets();
+  const idle = !state.printing, i = state.lib.Presets.indexOf(p);
+  openMenu(e.clientX, e.clientY, [
+    { label: state.sel.size > 1 ? `Apply to ${state.sel.size} files` : 'Apply to selected files', kb: i < 9 ? `Ctrl+${i + 1}` : '', icon: 'check', disabled: !idle || !state.sel.size, run: () => applyPresetCmd(p) },
+    { label: 'Update from the selected file', icon: 'save', disabled: !idle || state.sel.size !== 1, run: updatePresetCmd },
+    '-',
+    { label: 'Edit…', icon: 'edit', disabled: !idle, run: () => openPresetManager(p.Id) },
+    { label: 'Rename…', icon: 'text', disabled: !idle, run: async () => {
+      const a = await askText('Rename preset', 'New name:', { value: p.Name, ok: 'Rename' }); if (!a) return;
+      p.Name = M.uniqueName(state.lib, a.text, p); await savePresets(); M.libraryChanged(state.items, state.lib); refresh(); renderPresets(); } },
+    { label: 'Duplicate', icon: 'copy', disabled: !idle, run: async () => {
+      const c = { Id: M.newId(), Name: M.uniqueName(state.lib, p.Name + ' copy'), Settings: M.clone(p.Settings) };
+      state.lib.Presets.splice(i + 1, 0, c); state.presetPick = c; await savePresets(); renderPresets(); } },
+    { label: 'Set as default', icon: 'star', disabled: !idle || p.Id === state.lib.DefaultPresetId, run: async () => { state.lib.DefaultPresetId = p.Id; await savePresets(); renderPresets(); toast(`"${p.Name}" is given to files you add.`); } },
+    '-',
+    { label: 'Delete', icon: 'trash', disabled: !idle, run: async () => {
+      if (!(await askConfirm(`Delete the preset "${p.Name}"?`, 'Delete', 'Files that use it keep their settings.'))) return;
+      state.lib.Presets.splice(i, 1);
+      if (state.lib.DefaultPresetId === p.Id) state.lib.DefaultPresetId = state.lib.Presets[0]?.Id ?? null;
+      await savePresets(); M.libraryChanged(state.items, state.lib); refresh(); buildPanel(); } }
+  ]);
+});
+$('#pApply').onclick = () => state.presetPick && applyPresetCmd(state.presetPick);
+$('#pNew').onclick = saveAsPresetCmd;
+$('#pManage').onclick = () => openPresetManager();
 function buildPanel() {
-  renderPresetBox();
+  renderPresets();
   const box = $('#settingsBox');
   box.innerHTML = '';
   editor = null;
   const items = selected();
   if (!items.length) {
-    box.innerHTML = `<section class="tsec"><h3><span class="tsec-head" style="cursor:default">${svg('doc')}<span>File settings</span></span></h3>
-      <p class="hint">${state.items.length ? 'Select one or more files in the list to see and change their settings. Click, Ctrl+click, Shift+click or Ctrl+A.' : 'Add PDF files, then select them here to change their printer, tray, pages and more.'}</p></section>`;
+    box.innerHTML = `<p class="empty-props">${state.items.length ? 'Select one or more files in the list to see and change their printer, tray, pages and more. Click, Ctrl+click, Shift+click or Ctrl+A.' : 'Add PDF files, then select them to change their printer, tray, pages and more. Each file keeps its own settings.'}</p>`;
     return;
   }
   const head = document.createElement('section');
@@ -834,7 +868,7 @@ function syncPanel() {
     const pl = $('#settingsBox .pl');
     const anyMod = items.some(it => it.modified && it.presetId), linked = items.some(it => it.presetId);
     pl.innerHTML = names.length === 1 && names[0] != null
-      ? `Preset <span class="chip preset">${esc(names[0])}${anyMod ? '<span class="star">*</span>' : ''}</span>`
+      ? `Preset <span class="chip preset-chip">${esc(names[0])}${anyMod ? '<span class="star">*</span>' : ''}</span>`
       : names.length > 1 ? 'Presets <span class="chip own">Mixed</span>' : '<span class="chip own">Own settings — no preset</span>';
     $('#pReset').hidden = !(linked && anyMod);
   }
@@ -857,7 +891,7 @@ $('#settingsBox').insertAdjacentHTML('afterend', `<datalist id="fontList">${FONT
 function applyPresetCmd(p) {
   if (state.printing) return;
   const items = selected();
-  if (!items.length) { toast('Select one or more files in the list first.'); return; }
+  if (!items.length) { toast('Select one or more files in the list first, then apply the preset.'); return; }
   M.applyPreset(items, p);
   state.presetPick = p;
   markDirty(); refresh(); buildPanel();
@@ -980,14 +1014,6 @@ async function saveJob(as) {
   state.jobPath = p; state.jobDirty = false; updateTitle();
   toast(`Saved ${p.split(/[\\/]/).pop()}.`);
 }
-function openSaveMenu() {
-  const b = $('#bSaveMore'), r = b.getBoundingClientRect();
-  openMenu(r.left, r.bottom + 4, [
-    { label: 'Save job', kb: 'Ctrl+S', icon: 'save', run: () => saveJob(false) },
-    { label: 'Save job as…', kb: 'Ctrl+Shift+S', icon: 'save', run: () => saveJob(true) }
-  ], b);
-}
-
 /* ================================================================== estimate and printing */
 function estimateTable(list) {
   const est = list.map(it => state.est.get(it.id) || {});
@@ -1047,7 +1073,7 @@ function setPrintingUi() {
   const p = state.printing;
   $('#runBar').hidden = !p; $('#runBtns').hidden = !p; $('#bPrint').hidden = !!p;
   if (p) { $('#runBar i').style.width = Math.round(p.fraction * 100) + '%'; $('#bPause').querySelector('span').textContent = p.paused ? 'Resume' : 'Pause'; $('#bPause').querySelector('svg').innerHTML = ICONS[p.paused ? 'print' : 'pause']; }
-  renderPresetBox(); refresh({ estimate: false });
+  renderPresets(); refresh({ estimate: false });
 }
 function onEngineEvent(ev) {
   if (ev.event === 'progress' && state.printing) {
@@ -1292,34 +1318,41 @@ function setTheme(t) {
   desk?.setTheme(t);
 }
 $('#bTheme').onclick = () => setTheme(THEMES[(THEMES.indexOf(lsGet('sievphov-theme') || 'system') + 1) % 3]);
-function showAppMenu() { if (anyModal()) return; const r = $('#bMenu').getBoundingClientRect(); desk?.showMenu(r.left, r.bottom); }
-$('#bMenu').onclick = showAppMenu;
+// the menu words in the title row (as in Bohpum): each opens its own menu under it; Alt+F/E/P/V/H and F10 too
+const MENU_KEYS = { f: 0, e: 1, p: 2, v: 3, h: 4 };
+function openAppMenu(i) {
+  const b = document.querySelector(`.menu-btn[data-menu="${i}"]`);
+  if (!b || !desk || anyModal()) return;
+  const r = b.getBoundingClientRect();
+  b.classList.add('open');
+  Promise.resolve(desk.showMenu(i, r.left, r.bottom)).finally(() => b.classList.remove('open'));
+}
+document.querySelectorAll('.menu-btn').forEach(b => b.addEventListener('click', () => openAppMenu(+b.dataset.menu)));
 $('#bAbout').onclick = openAbout;
 $('#bAddFiles').onclick = $('#bAddFiles2').onclick = addFilesCmd;
 $('#bAddFolder').onclick = $('#bAddFolder2').onclick = addFolderCmd;
 $('#bOpenJob').onclick = openJobCmd;
 $('#bSaveJob').onclick = () => saveJob(false);
-$('#bSaveMore').onclick = openSaveMenu;
+$('#bPrintTb').onclick = printCmd;
 $('#bRemove').onclick = () => removeItems(selected());
 $('#bUp').onclick = () => moveSelected(-1);
 $('#bDown').onclick = () => moveSelected(1);
 $('#bPreview').onclick = () => openPreview();
 $('#bEstimate').onclick = estimateCmd;
-document.querySelector('.tsec[data-sec="presets"] .tsec-head').addEventListener('click', e => {
-  const sec = e.currentTarget.closest('.tsec'); sec.classList.toggle('folded'); e.currentTarget.setAttribute('aria-expanded', !sec.classList.contains('folded'));
-});
-// the panel's left edge: drag to resize (320–560 px), double-click for the normal width, as Sastra PDF's Pages panel
-(() => {
-  const r = $('#toolsResizer');
-  const setW = w => { document.documentElement.style.setProperty('--tools-w', w + 'px'); lsSet('sievphov-tools-w', w); };
+// the side panels' inner edges: drag to resize, double-click for the normal width (as Bohpum's Pages panel)
+function resizer(id, cssVar, key, min, max, widthAt) {
+  const r = $(id);
+  const setW = w => { document.documentElement.style.setProperty(cssVar, w + 'px'); lsSet(key, w); };
   r.addEventListener('pointerdown', e => {
-    e.preventDefault(); r.setPointerCapture(e.pointerId); document.body.classList.add('resizing');
-    const move = ev => setW(Math.max(320, Math.min(560, Math.round(innerWidth - ev.clientX))));
-    const up = () => { document.body.classList.remove('resizing'); r.removeEventListener('pointermove', move); r.removeEventListener('pointerup', up); };
+    e.preventDefault(); r.setPointerCapture(e.pointerId); document.body.classList.add('resizing'); r.classList.add('active');
+    const move = ev => setW(Math.max(min, Math.min(max, Math.round(widthAt(ev.clientX)))));
+    const up = () => { document.body.classList.remove('resizing'); r.classList.remove('active'); r.removeEventListener('pointermove', move); r.removeEventListener('pointerup', up); };
     r.addEventListener('pointermove', move); r.addEventListener('pointerup', up);
   });
-  r.addEventListener('dblclick', () => { document.documentElement.style.removeProperty('--tools-w'); try { localStorage.removeItem('sievphov-tools-w'); } catch {} });
-})();
+  r.addEventListener('dblclick', () => { document.documentElement.style.removeProperty(cssVar); try { localStorage.removeItem(key); } catch {} });
+}
+resizer('#presetsResizer', '--presets-w', 'sievphov-presets-w', 170, 380, x => x);
+resizer('#toolsResizer', '--tools-w', 'sievphov-tools-w', 300, 520, x => innerWidth - x);
 
 /* ================================================================== keys and menu commands */
 const COMMANDS = {
@@ -1349,7 +1382,8 @@ document.addEventListener('keydown', e => {
   if (ctrl && e.shiftKey && k === 's') return run('saveJobAs');
   if (ctrl && k === 'p') return run('print');
   if (e.key === 'F5') return run('preview');
-  if (e.key === 'F10') { e.preventDefault(); showAppMenu(); return; }
+  if (e.key === 'F10') { e.preventDefault(); openAppMenu(0); return; }
+  if (e.altKey && !ctrl && !e.shiftKey && MENU_KEYS[k] != null) { e.preventDefault(); altAlone = false; openAppMenu(MENU_KEYS[k]); return; }
   if (ctrl && e.shiftKey && k === 'c') return run('copySettings');
   if (ctrl && e.shiftKey && k === 'v') return run('pasteSettings');
   if (typing) return;
@@ -1369,7 +1403,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && state.sel.size) selectOnly([]);
 });
 // Alt pressed and let go alone opens the menu (as in Sastra PDF)
-document.addEventListener('keyup', e => { if (e.key === 'Alt' && altAlone) { altAlone = false; e.preventDefault(); showAppMenu(); } });
+document.addEventListener('keyup', e => { if (e.key === 'Alt' && altAlone) { altAlone = false; e.preventDefault(); openAppMenu(0); } });
 document.addEventListener('mousedown', () => { altAlone = false; });
 
 /* ================================================================== start */

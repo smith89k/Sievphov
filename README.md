@@ -6,8 +6,8 @@ Print many PDF files in one go on Windows. Each file has its own printer, **pape
 and **presets** give a saved set of settings to many selected files with one click.
 Made for printing books (Khmer books, sastra): two-sided, booklets, page numbers in Khmer digits, watermarks.
 
-Sievphov looks and works like its sister apps **Bohpum** and **Sastra PDF**: the same title bar, fonts, boxes and
-light / dark theme, with the logo's purple.
+Sievphov is laid out like its sister app **Bohpum** (title row with the menus, a toolbar, presets on the left, files
+in the middle, settings on the right) and shares its fonts, boxes and light / dark theme, with the logo's purple.
 
 ## Get it
 
@@ -27,9 +27,9 @@ Windows may show "Windows protected your PC" for the unsigned installer: **More 
 |---|---|
 | Add files | Drag PDFs or folders onto the window, or **Add files** (Ctrl+O) / **Add folder** (Ctrl+Shift+O: include subfolders, pick a preset) |
 | Choose what prints | Tick the files. **▶ Print N files** at the bottom right prints every ticked file (Ctrl+P). |
-| Use a preset | Select files (click, Ctrl+click, Shift+click, Ctrl+A) → pick a preset in **Presets** → **Apply to selected**. Or right-click → a preset, or **Ctrl+1 … Ctrl+9**. |
+| Use a preset | Select files (click, Ctrl+click, Shift+click, Ctrl+A) → double-click a preset in the **Presets** panel on the left (or click it, then **Apply to selected**). Or right-click a file → a preset, or **Ctrl+1 … Ctrl+9**. |
 | Change settings | Select one or more files: the panel on the right shows their settings. A change applies at once to every selected file, only for that setting. Values that differ from the file's preset are **bold** with a dot; the Preset column shows `*`; **Reset to preset** puts them back. "Files differ" / **Mixed** means the selected files have different values. |
-| Make or edit presets | **Manage presets…**: New, Duplicate, Delete, Up / Down, Default (given to files you add), Import / Export (copy presets to another PC). **Save as preset…** and **Update preset** take the selected file's settings. |
+| Make or edit presets | **+** in the Presets panel saves the selected file's settings as a new preset. Right-click a preset: update it from the selected file, edit, rename, duplicate, set as default (given to files you add), delete. **✎ Manage presets** also has Up / Down and Import / Export (copy presets to another PC). |
 | Check before printing | **Preview** (F5) shows every sheet as it will print, on the file's printer and paper. **Estimate** shows pages and paper per printer. |
 | While printing | **Pause** / **Stop** at the bottom right. At the end a report lists what printed and what failed; **Save as CSV (Excel)**. |
 | After printing | In the Print box: do nothing, or move / copy the printed PDFs to a folder. |

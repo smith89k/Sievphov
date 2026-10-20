@@ -59,3 +59,21 @@ One JSON object per line on stdin / stdout. Request `{ id, cmd, ... }` → reply
 ## Out of scope for now
 Automatic updates, Microsoft Store package, Explorer right-click menu (all three exist in the other apps and can come
 later), Khmer interface.
+
+## Change (same day): laid out like Bohpum, not Sastra PDF
+The user: "keep layout similar to bohpum, instead of sastra pdf". So:
+- Bohpum's tokens (`--chrome #f7f5f1`, `--chrome-2`, `--line`/`--line-2`/`--line-3`, `--ink`/`--ink-2`/`--ink-3`,
+  `--field`, `--surface`, `--surface-2`, `--pasteboard`, …) with the purple accent instead of its green.
+- Title row 36 px (main.js `BAR_H` 36, colours `#f7f5f1` / `#23201b`): brand (opens About) · menu words File Edit
+  Presets View Help (each pops up its own menu under it: `show-menu(index, x, y)`, as Bohpum; Alt+F/E/P/V/H, F10 and
+  Alt alone open them) · the job name in the middle ("Untitled job •"). No ☰.
+- Toolbar row as Bohpum's `#topbar`: groups with dividers (Add files, Add folder | Open job, Save job, Print | Remove,
+  ▲, ▼ | Preview, Estimate | … Theme); words hide below 1320 px. Save ▾ is gone (Save job as… is in File, Ctrl+Shift+S).
+- Three columns like Bohpum's Pages | page | properties: the **Presets panel** on the left (`.panel-h` "Presets 3"
+  with + = save the selected file's settings as a preset, ✎ = Manage presets; one card per preset with name, what it
+  does, Default, how many files use it, Ctrl+N; click picks, double-click or Enter applies to the selected files,
+  right-click: apply, update from the selected file, edit, rename, duplicate, set default, delete; Apply to selected at
+  its foot; drag its right edge 170–380 px), the file list in the middle on white, the settings on the right as
+  Bohpum's properties panel (300–520 px), with the print bar at its foot.
+- Boxes as Bohpum's modals (white, header line, footer band); Preview as Bohpum's print screen (white header and left
+  column, the sheet on the pasteboard grey).

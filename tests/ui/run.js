@@ -120,6 +120,15 @@ app.whenReady().then(async () => {
     check((await js(`document.getElementById('pvInfo').textContent`)).includes('pages 2 | 119'), 'booklet sheet 1 back = pages 2 | 119');
     await key('Escape');
 
+    // the Bohpum layout: menu words in the title row, the Presets panel on the left
+    check(await js(`[...document.querySelectorAll('#menus .menu-btn')].map(b => b.textContent).join(',')`) === 'File,Edit,Presets,View,Help', 'title row has the menu words File Edit Presets View Help');
+    check(await js(`document.querySelectorAll('#presetList .preset').length`) === 3 && await js(`document.getElementById('presetCount').textContent`) === '3', 'Presets panel lists the 3 presets with a count');
+    await pickRow(3);
+    await js(`document.querySelectorAll('#presetList .preset')[1].dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`);
+    await sleep(250);
+    check((await rowText(3)).includes('Both sides (long edge)') && (await rowText(3)).includes('2-sided'), 'double-clicking a preset applies it to the selected file');
+    await shot('05b-presets-panel');
+
     // manage presets
     await click('#pManage');
     await waitFor(() => js(`!!document.querySelector('.modal.presets')`), 'presets box');

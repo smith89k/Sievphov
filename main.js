@@ -53,10 +53,10 @@ function bringUp(w) {
   w.setAlwaysOnTop(true); w.show(); w.focus(); w.setAlwaysOnTop(false);
 }
 
-// The logo row is the title bar (as in Sastra PDF). Windows still draws minimize / maximize / close over its right
-// end in the page's colours (--chrome / --fg in app/app.css, KEEP IN SYNC); the menu opens from ☰.
-const BAR_H = 44;   // the logo row without its 1 px bottom line
-const BAR_COLORS = { light: { color: '#efece8', symbolColor: '#23201c' }, dark: { color: '#1f1d1b', symbolColor: '#ece8e2' } };
+// The title row is the window's title bar (as in Bohpum). Windows still draws minimize / maximize / close over its right
+// end in the page's colours (--chrome / --ink in app/app.css, KEEP IN SYNC); the menus open from its menu words.
+const BAR_H = 36;   // the title row without its 1 px bottom line (as in Bohpum)
+const BAR_COLORS = { light: { color: '#f7f5f1', symbolColor: '#23201b' }, dark: { color: '#1f1d1b', symbolColor: '#ece8e2' } };
 const barColors = () => BAR_COLORS[nativeTheme.shouldUseDarkColors ? 'dark' : 'light'];
 function paintBar() { if (win && process.platform === 'win32') win.setTitleBarOverlay(barColors()); }
 
@@ -66,7 +66,7 @@ function createWindow() {
     width: 1400, height: 880, minWidth: 900, minHeight: 540,
     title: APP_TITLE,
     icon: path.join(__dirname, 'build', 'icon.png'),
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1f1d1b' : '#efece8',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1f1d1b' : '#f7f5f1',
     titleBarStyle: 'hidden', titleBarOverlay: { ...barColors(), height: BAR_H },
     show: false,
     webPreferences: {
@@ -325,10 +325,12 @@ ipcMain.on('set-theme', (_e, t) => {
   if (item) item.checked = true;
   paintBar();
 });
-ipcMain.on('show-menu', (e, x, y) => {
-  if (!win || e.sender !== win.webContents) return;
-  Menu.getApplicationMenu()?.popup({ window: win, x: Math.max(0, Math.round(+x) || 0), y: Math.max(0, Math.round(+y) || 0) });
-});
+// a menu word in the title row (as in Bohpum): that menu drops down under it; resolves when it closes
+ipcMain.handle('show-menu', (e, index, x, y) => new Promise(resolve => {
+  const item = Menu.getApplicationMenu()?.items[index | 0];
+  if (!win || e.sender !== win.webContents || !item || !item.submenu) return resolve(false);
+  item.submenu.popup({ window: win, x: Math.max(0, Math.round(+x) || 0), y: Math.max(0, Math.round(+y) || 0), callback: () => resolve(true) });
+}));
 ipcMain.on('show-folder', (_e, p) => { if (p) shell.showItemInFolder(String(p)); });
 ipcMain.handle('app-version', () => VERSION);
 ipcMain.handle('initial-paths', () => { const p = pendingPaths; pendingPaths = []; return p; });

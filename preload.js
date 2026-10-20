@@ -31,7 +31,7 @@ contextBridge.exposeInMainWorld('sievphov', {
   closeNow: () => ipcRenderer.send('close-now'),
   setTitle: t => ipcRenderer.send('set-title', t),
   setTheme: t => ipcRenderer.send('set-theme', t),
-  showMenu: (x, y) => ipcRenderer.send('show-menu', x, y),
+  showMenu: (index, x, y) => ipcRenderer.invoke('show-menu', index, x, y),
   showInFolder: p => ipcRenderer.send('show-folder', p),
   pathForFile: f => { try { return webUtils.getPathForFile(f) || null; } catch { return null; } },
   onMenu: fn => ipcRenderer.on('menu', (_e, cmd) => fn(cmd)),

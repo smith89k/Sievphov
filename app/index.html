@@ -4,83 +4,111 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'none'; object-src 'none'">
 <title>Sievphov</title>
-<script>/* saved theme and panel width before first paint, so nothing flashes or jumps */try{const t=localStorage.getItem('sievphov-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;const w=+localStorage.getItem('sievphov-tools-w');if(w>=320&&w<=560)document.documentElement.style.setProperty('--tools-w',w+'px')}catch{}</script>
+<script>/* saved theme and panel widths before first paint, so nothing flashes or jumps */try{const t=localStorage.getItem('sievphov-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;const p=+localStorage.getItem('sievphov-presets-w');if(p>=170&&p<=380)document.documentElement.style.setProperty('--presets-w',p+'px');const w=+localStorage.getItem('sievphov-tools-w');if(w>=300&&w<=520)document.documentElement.style.setProperty('--tools-w',w+'px')}catch{}</script>
+<link rel="preload" href="fonts/noto-sans-khmer/noto-sans-khmer-khmer-500-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="app.css">
 <link rel="icon" href="logo.png">
 </head>
 <body>
-<div id="app">
-  <header class="menubar" id="menubar">
-    <button class="btn icon" id="bMenu" title="Menu (Alt)" aria-haspopup="menu"><svg class="i" data-i="menu"></svg></button>
-    <button class="brand" id="bAbout" title="About Sievphov"><img class="brand-mark" src="logo.png" alt="" width="26" height="26"><span>Sievphov</span><span class="brand-km" lang="km">សៀវភៅ</span></button>
-    <button class="btn" id="bAddFiles" title="Add PDF files (Ctrl+O) — or drag them onto the list"><svg class="i" data-i="addfile"></svg><span class="lbl">Add files</span></button>
+<!-- Laid out like Bohpum: title row (brand · menu words · job name), toolbar, then Presets | the file list | settings, status bar -->
+<header id="titlebar">
+  <button class="brand" id="bAbout" title="About Sievphov"><img class="logo" src="logo.png" alt="" draggable="false"><span>Sievphov</span><span class="km" lang="km">សៀវភៅ</span></button>
+  <nav id="menus">
+    <button class="menu-btn" data-menu="0">File</button>
+    <button class="menu-btn" data-menu="1">Edit</button>
+    <button class="menu-btn" data-menu="2">Presets</button>
+    <button class="menu-btn" data-menu="3">View</button>
+    <button class="menu-btn" data-menu="4">Help</button>
+  </nav>
+  <div id="doc-title"></div>
+</header>
+
+<header id="topbar">
+  <div class="tb-group">
+    <button class="btn" id="bAddFiles" title="Add PDF files (Ctrl+O) — or drag them onto the window"><svg class="i" data-i="addfile"></svg><span class="lbl">Add files</span></button>
     <button class="btn" id="bAddFolder" title="Add every PDF in a folder (Ctrl+Shift+O)"><svg class="i" data-i="folder"></svg><span class="lbl">Add folder</span></button>
-    <span class="sep"></span>
+  </div>
+  <div class="tb-group">
     <button class="btn" id="bOpenJob" title="Open a saved job (.svpv) — Ctrl+J"><svg class="i" data-i="open"></svg><span class="lbl">Open job</span></button>
-    <span class="splitbtn"><button class="btn" id="bSaveJob" title="Save the list with every file's settings (Ctrl+S)"><svg class="i" data-i="save"></svg><span class="lbl">Save job</span></button><button class="btn icon more" id="bSaveMore" title="More ways to save" aria-label="More ways to save" aria-haspopup="menu" aria-expanded="false"><svg class="i" data-i="up"></svg></button></span>
-    <span class="sep"></span>
-    <button class="btn icon" id="bRemove" title="Remove selected files from the list (Delete)"><svg class="i" data-i="trash"></svg></button>
-    <button class="btn icon" id="bUp" title="Move up (Alt+↑)"><svg class="i" data-i="up"></svg></button>
-    <button class="btn icon" id="bDown" title="Move down (Alt+↓)"><svg class="i" data-i="down"></svg></button>
-    <span class="sep"></span>
+    <button class="btn" id="bSaveJob" title="Save the list with every file's settings (Ctrl+S)"><svg class="i" data-i="save"></svg><span class="lbl">Save job</span></button>
+    <button class="btn" id="bPrintTb" title="Print every ticked file (Ctrl+P)"><svg class="i" data-i="print"></svg><span class="lbl">Print</span></button>
+  </div>
+  <div class="tb-group">
+    <button class="btn" id="bRemove" title="Remove selected files from the list (Delete)"><svg class="i" data-i="trash"></svg></button>
+    <button class="btn" id="bUp" title="Move up (Alt+↑)"><svg class="i" data-i="up"></svg></button>
+    <button class="btn" id="bDown" title="Move down (Alt+↓)"><svg class="i" data-i="down"></svg></button>
+  </div>
+  <div class="tb-group">
     <button class="btn" id="bPreview" title="See every sheet before printing (F5)"><svg class="i" data-i="eye"></svg><span class="lbl">Preview</span></button>
     <button class="btn" id="bEstimate" title="Pages and paper needed, per printer"><svg class="i" data-i="calc"></svg><span class="lbl">Estimate</span></button>
-    <span class="spacer"></span>
-    <button class="btn icon" id="bTheme" title="Theme"><svg class="i" data-i="sys"></svg></button>
-  </header>
-
-  <div class="workspace" id="ws">
-    <main class="list cols" id="list" tabindex="0" aria-label="Files to print">
-      <div class="list-head" id="listHead">
-        <span class="center"><input type="checkbox" id="tickAll" title="Tick or untick all files" aria-label="Tick all"></span>
-        <span class="center">#</span>
-        <button data-sort="name">File</button>
-        <button data-sort="pages" class="center">Pages</button>
-        <button data-sort="preset">Preset</button>
-        <button data-sort="printer">Printer</button>
-        <button data-sort="tray" class="c-tray">Tray</button>
-        <button data-sort="sides" class="c-sides">Sides</button>
-        <button data-sort="copies" class="center">Copies</button>
-        <button data-sort="status">Status</button>
-      </div>
-      <div class="rows" id="rows" role="listbox" aria-multiselectable="true"></div>
-      <div class="empty" id="empty">
-        <div class="drop">
-          <img class="big-ic" src="svpv-file.png" alt="" width="64" height="64">
-          <h2>Add PDF files to print</h2>
-          <p>Drop PDF files or whole folders anywhere on this window, or choose them. Each file keeps its own printer, tray and settings.</p>
-          <div class="acts">
-            <button class="btn primary" id="bAddFiles2"><svg class="i" data-i="addfile"></svg>Add files</button>
-            <button class="btn outline" id="bAddFolder2"><svg class="i" data-i="folder"></svg>Add folder</button>
-          </div>
-          <p style="font-size:12px"><span class="kbd">Ctrl</span>+<span class="kbd">1</span>…<span class="kbd">9</span> apply a preset · <span class="kbd">F5</span> preview · <span class="kbd">Ctrl</span>+<span class="kbd">P</span> print</p>
-        </div>
-      </div>
-    </main>
-    <div class="tools-resizer" id="toolsResizer" role="separator" aria-orientation="vertical" aria-label="Resize the settings panel" title="Drag to resize · double-click for the normal width"></div>
-    <aside class="tools" id="tools" aria-label="Settings">
-      <div class="tools-scroll" id="toolsScroll">
-        <section class="tsec" data-sec="presets">
-          <h3><button class="tsec-head" aria-expanded="true"><svg class="i" data-i="stack"></svg><span>Presets</span><svg class="i chev" data-i="up"></svg></button></h3>
-          <div id="presetBox"></div>
-        </section>
-        <div id="settingsBox"></div>
-      </div>
-      <div class="printbar" id="printbar">
-        <div class="sum"><span id="sumFiles">No files ticked</span><span id="sumSheets"></span></div>
-        <div class="bar" id="runBar" hidden><i></i></div>
-        <button class="btn primary go" id="bPrint" title="Print every ticked file (Ctrl+P)"><svg class="i" data-i="print"></svg><span id="printLbl">Print</span></button>
-        <div class="run" id="runBtns" hidden>
-          <button class="tbtn" id="bPause"><svg class="i" data-i="pause"></svg><span>Pause</span></button>
-          <button class="tbtn" id="bStop"><svg class="i" data-i="stop"></svg><span>Stop</span></button>
-        </div>
-      </div>
-    </aside>
   </div>
+  <div class="spacer"></div>
+  <div class="tb-group">
+    <button class="btn" id="bTheme" title="Theme"><svg class="i" data-i="sys"></svg></button>
+  </div>
+</header>
 
-  <footer class="status" id="status"><span id="stFiles">No files</span><span id="stSel"></span><span class="spacer"></span><span id="stBusy"></span><span id="stEngine"></span></footer>
-</div>
+<main id="ws">
+  <aside id="presets" aria-label="Presets">
+    <div class="panel-h">
+      <span>Presets <span class="count" id="presetCount">0</span></span>
+      <span class="panel-tools">
+        <button class="btn" id="pNew" title="New preset from the selected file's settings"><svg class="i" data-i="plus"></svg></button>
+        <button class="btn" id="pManage" title="Manage presets…"><svg class="i" data-i="edit"></svg></button>
+      </span>
+    </div>
+    <div id="presetList" role="listbox" aria-label="Presets"></div>
+    <div class="panel-f">
+      <button class="btn primary" id="pApply" title="Give the selected files this preset (double-click a preset, or Ctrl+1 … Ctrl+9)"><svg class="i" data-i="check"></svg><span>Apply to selected</span></button>
+    </div>
+    <div id="presetsResizer" class="resizer right" role="separator" aria-orientation="vertical" aria-label="Resize the Presets panel" title="Drag to resize · double-click for the normal width"></div>
+  </aside>
+
+  <section class="list cols" id="list" tabindex="0" aria-label="Files to print">
+    <div class="list-head" id="listHead">
+      <span class="center"><input type="checkbox" id="tickAll" title="Tick or untick all files" aria-label="Tick all"></span>
+      <span class="center">#</span>
+      <button data-sort="name">File</button>
+      <button data-sort="pages" class="center">Pages</button>
+      <button data-sort="preset">Preset</button>
+      <button data-sort="printer">Printer</button>
+      <button data-sort="tray" class="c-tray">Tray</button>
+      <button data-sort="sides" class="c-sides">Sides</button>
+      <button data-sort="copies" class="center">Copies</button>
+      <button data-sort="status">Status</button>
+    </div>
+    <div class="rows" id="rows" role="listbox" aria-multiselectable="true"></div>
+    <div class="empty" id="empty">
+      <div class="drop">
+        <img class="big-ic" src="svpv-file.png" alt="" width="64" height="64">
+        <h2>Add PDF files to print</h2>
+        <p>Drop PDF files or whole folders anywhere on this window, or choose them. Each file keeps its own printer, tray and settings.</p>
+        <div class="acts">
+          <button class="btn primary" id="bAddFiles2"><svg class="i" data-i="addfile"></svg>Add files</button>
+          <button class="btn outline" id="bAddFolder2"><svg class="i" data-i="folder"></svg>Add folder</button>
+        </div>
+        <p class="keys"><span class="kbd">Ctrl</span>+<span class="kbd">1</span>…<span class="kbd">9</span> apply a preset · <span class="kbd">F5</span> preview · <span class="kbd">Ctrl</span>+<span class="kbd">P</span> print</p>
+      </div>
+    </div>
+  </section>
+
+  <aside id="tools" aria-label="Settings">
+    <div id="toolsResizer" class="resizer left" role="separator" aria-orientation="vertical" aria-label="Resize the settings panel" title="Drag to resize · double-click for the normal width"></div>
+    <div class="tools-scroll" id="toolsScroll"><div id="settingsBox"></div></div>
+    <div class="printbar" id="printbar">
+      <div class="sum"><span id="sumFiles">No files ticked</span><span id="sumSheets"></span></div>
+      <div class="bar" id="runBar" hidden><i></i></div>
+      <button class="btn primary go" id="bPrint" title="Print every ticked file (Ctrl+P)"><svg class="i" data-i="print"></svg><span id="printLbl">Print</span></button>
+      <div class="run" id="runBtns" hidden>
+        <button class="btn" id="bPause"><svg class="i" data-i="pause"></svg><span>Pause</span></button>
+        <button class="btn" id="bStop"><svg class="i" data-i="stop"></svg><span>Stop</span></button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<footer id="status"><span id="stFiles">No files</span><span id="stSel"></span><span class="grow" id="stBusy"></span><span id="stSheets"></span><span id="stEngine"></span></footer>
 
 <script src="model.js"></script>
 <script src="notes.js"></script>

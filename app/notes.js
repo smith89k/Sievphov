@@ -10,11 +10,12 @@ const N = (version, date, notes) => Object.freeze({ version, date, notes: Object
 
 const NOTES = Object.freeze([
   N('2.0.0', '2026-10-20', [
-    ['new', 'A new look, the same as Sastra PDF and Bohpum: Sievphov draws its own title bar, uses the same fonts and boxes, and has a light and a dark theme (the button at the top right, or ☰ › View › Theme).'],
+    ['new', 'A new look, laid out like Bohpum: the title row with the File, Edit, Presets, View and Help menus and the job\'s name, a toolbar under it, your presets on the left, the files in the middle and their settings on the right. The same fonts, boxes and light and dark theme as Bohpum and Sastra PDF (the button at the top right, or View › Theme).'],
+    ['new', 'The Presets panel on the left lists every preset with what it does and how many files use it. Double-click one, or click it and then Apply to selected, to give it to the selected files. Right-click a preset to edit, rename, duplicate, delete it or make it the default.'],
     ['new', 'File settings are now a panel on the right. Select one or more files and change anything there: it applies at once to every selected file, only for the setting you changed. Values that differ from the file\'s preset are bold, and Reset to preset puts them back.'],
-    ['new', 'Presets in the same panel: pick one and click Apply to selected, or press Ctrl+1 … Ctrl+9. Each preset keeps the printer, paper tray, paper, sides, copies, pages, layout, page numbers and watermark.'],
+    ['new', 'Ctrl+1 … Ctrl+9 apply the first nine presets. Each preset keeps the printer, paper tray, paper, sides, copies, pages, layout, page numbers and watermark.'],
     ['new', 'Drag files in the list to put them in another order, or click a column heading to sort.'],
-    ['improved', 'Preview fills the window, like the Print screen in Sastra PDF: every sheet exactly as it will print, on the file\'s own printer and paper.'],
+    ['improved', 'Preview fills the window, like the Print screen in Bohpum: every sheet exactly as it will print, on the file\'s own printer and paper.'],
     ['improved', 'Every message is now in Sievphov\'s own boxes, never a Windows message box.']
   ]),
   N('1.0.0', '2026-10-19', [
