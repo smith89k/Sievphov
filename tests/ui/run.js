@@ -195,6 +195,38 @@ app.whenReady().then(async () => {
     await click('.modal.report [data-a="close"]');
     check((await rowText(2)).includes('Printed'), 'printed files say Printed');
 
+    // blank paper: a separator row after the invoice, with the invoice's settings; Copies = how many blank sheets
+    await click('#repMinus'); await click('#repMinus');
+    await pickRow(2);
+    await js(`document.getElementById('list').focus()`);
+    await key('B', ['control']);
+    await waitFor(() => js(`document.querySelectorAll('.row').length === 6`), 'blank paper row');
+    const blankRow = await rowText(3);
+    check(blankRow.includes('Blank paper') && blankRow.includes('Both sides (long edge)') && blankRow.includes('2-sided'), 'Ctrl+B adds Blank paper after the selected file, with its preset and settings');
+    check(await js(`document.querySelectorAll('.row')[3].classList.contains('sel') && document.querySelector('#settingsBox .sel-head b').textContent === 'Blank paper'`), 'the new blank paper is selected and its settings are in the panel');
+    await js(`(() => { const i = document.querySelector('.copies-row input'); i.value = '3'; i.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await waitFor(() => js(`document.querySelector('#settingsBox .sel-head small').textContent.includes('3 blank sheets (= Copies)')`), 'blank sheets summary');
+    check(true, 'Copies 3 on blank paper: the panel says it prints 3 blank sheets');
+    await shot('09a-blank-paper');
+    await key('F5');
+    await waitFor(() => js(`document.querySelectorAll('.modal.preview .pv-group').length === 3`), 'preview with blank paper');
+    check(await js(`document.querySelectorAll('.pv-group')[1].querySelector('.pv-gh b').textContent === 'Blank paper' && document.querySelectorAll('.pv-group')[1].querySelectorAll('.pv-sheet').length === 1`), 'preview shows the blank paper between the files as one sheet');
+    await js(`document.querySelectorAll('.pv-group')[1].scrollIntoView()`);
+    await waitFor(() => js(`!!document.querySelectorAll('.pv-group')[1].querySelector('.pv-side img')`), 'blank sheet drawn');
+    check(await js(`!atob(document.querySelectorAll('.pv-group')[1].querySelector('.pv-side img').src.split(',')[1]).includes('#fafafa')`), 'the blank sheet has nothing on it');
+    check(await js(`document.querySelectorAll('.pv-file')[1].innerText.includes('3 blank sheets')`), 'preview: blank paper prints 3 blank sheets');
+    check(await js(`document.querySelectorAll('.pv-group')[1].querySelector('figcaption').textContent`) === 'Blank sheet × 3', 'preview: the blank sheet is labelled Blank sheet × 3');
+    await shot('09b-preview-blank');
+    await key('Escape');
+    check((await js(`document.getElementById('printLbl').textContent`)) === 'Print 3 files', 'blank paper is printed with the list');
+    check((await js(`document.getElementById('printSum').textContent`)) === '4 pages · about 6 sheets', 'blank sheets count as sheets, not pages');
+    await key('P', ['control']);
+    await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'print question 2');
+    await click('.modal.ask [data-r="1"]');
+    await waitFor(() => js(`!!document.querySelector('.modal.report')`), 'report 2', 20000);
+    check(await js(`[...document.querySelectorAll('.modal.report tbody tr')].some(r => r.cells[0].textContent === 'Blank paper' && r.cells[1].textContent === 'Printed' && r.cells[5].textContent === '0' && r.cells[6].textContent === '3')`), 'report: Blank paper printed, 0 pages, 3 sheets');
+    await click('.modal.report [data-a="close"]');
+
     await click('#bAbout');
     await waitFor(() => js(`!!document.querySelector('.modal.about')`), 'about');
     await shot('10-about');

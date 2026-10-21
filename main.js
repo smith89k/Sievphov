@@ -117,6 +117,7 @@ function buildMenu() {
     { label: '&Edit', submenu: [
       k('Select &All', 'Ctrl+A', 'selectAll'),
       k('&Remove from List', 'Delete', 'remove'),
+      k('Insert &Blank Paper', 'Ctrl+B', 'insertBlank'),
       k('Remove &Printed', undefined, 'removePrinted'),
       k('&Clear List', undefined, 'clear'),
       { type: 'separator' },
@@ -256,7 +257,7 @@ ipcMain.handle('save-job', async (_e, { filePath, job, name }) => {
   }
   remember('save', path.dirname(target));
   const dir = path.dirname(target);
-  job.Items = (job.Items || []).map(it => ({ ...it, RelativePath: path.relative(dir, it.FilePath) }));
+  job.Items = (job.Items || []).map(it => it.Blank ? it : { ...it, RelativePath: path.relative(dir, it.FilePath) });
   await writeJson(target, job);
   return target;
 });
@@ -264,6 +265,7 @@ ipcMain.handle('resolve-job-paths', async (_e, jobPath, items) => {
   const dir = path.dirname(String(jobPath));
   const out = [];
   for (const it of Array.isArray(items) ? items : []) {
+    if (it.Blank === true) { out.push(null); continue; }   // blank paper has no file
     let p = String(it.FilePath || '');
     if (!(await fs.access(p).then(() => true, () => false)) && it.RelativePath) {
       const rel = path.resolve(dir, String(it.RelativePath));

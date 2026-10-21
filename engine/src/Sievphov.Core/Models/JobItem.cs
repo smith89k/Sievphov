@@ -8,8 +8,13 @@ public sealed class JobItem
     /// <summary>The app's id for the row, echoed back in progress messages.</summary>
     public string Id { get; set; } = "";
     public string FilePath { get; set; } = "";
-    public string FileName => Path.GetFileName(FilePath);
-    public string Folder => Path.GetDirectoryName(FilePath) ?? "";
+    /// <summary>
+    /// Blank paper: a row with no file, put between files as a separator. It prints one empty page with the row's
+    /// printer, tray, paper and sides, so Copies is the number of blank sheets.
+    /// </summary>
+    public bool Blank { get; set; }
+    public string FileName => Blank ? "Blank paper" : Path.GetFileName(FilePath);
+    public string Folder => Blank ? "" : Path.GetDirectoryName(FilePath) ?? "";
 
     public int PageCount { get; set; }
     /// <summary>Page sizes in PDF points (1/72 inch).</summary>

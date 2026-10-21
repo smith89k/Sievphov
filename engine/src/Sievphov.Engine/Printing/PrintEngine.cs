@@ -148,9 +148,10 @@ public sealed class PrintEngine
     private (int Pages, int Sheets, bool Cancelled) PrintOne(JobItem item, int index, int count, string label, CancellationToken token)
     {
         var s = item.Settings;
-        if (!File.Exists(item.FilePath)) throw new FileNotFoundException("File not found", item.FilePath);
+        if (!item.Blank && !File.Exists(item.FilePath)) throw new FileNotFoundException("File not found", item.FilePath);
 
-        var pages = PageRangeParser.SelectPages(s, item.PageCount);
+        // blank paper: one empty page (whatever the page choice says), Copies times
+        var pages = item.Blank ? new List<int> { 1 } : PageRangeParser.SelectPages(s, item.PageCount);
         if (pages.Count == 0) throw new InvalidOperationException("No pages selected (check the page range)");
         var sides = SheetLayout.Build(pages, s);
         var sequence = SheetLayout.WithCopies(sides, s);
@@ -168,8 +169,7 @@ public sealed class PrintEngine
             doc.PrinterSettings.PrintFileName = PrintToFile(item);
         }
 
-        var pdf = File.ReadAllBytes(item.FilePath);
-        using var renderer = new SheetRenderer(item, pdf);
+        using var renderer = item.Blank ? null : new SheetRenderer(item, File.ReadAllBytes(item.FilePath));
         int next = 0;
         bool cancelled = false;
 
@@ -193,7 +193,7 @@ public sealed class PrintEngine
             g.TranslateTransform(-ps.HardMarginX, -ps.HardMarginY);
             var sheet = new RectangleF(0, 0, e.PageBounds.Width, e.PageBounds.Height);
             var printable = RectangleF.Inflate(sheet, -ps.HardMarginX, -ps.HardMarginY);
-            if (!sequence[next].IsBlank)
+            if (renderer is not null && !sequence[next].IsBlank)
             {
                 // One solid picture per side: printers handle see-through watermarks badly.
                 using var composed = Compose(renderer, printable, sequence[next], s.Dpi);
@@ -208,7 +208,7 @@ public sealed class PrintEngine
         };
 
         doc.Print();
-        return (pages.Count * Math.Max(1, s.Copies), sheets, cancelled || token.IsCancellationRequested);
+        return (item.Blank ? 0 : pages.Count * Math.Max(1, s.Copies), sheets, cancelled || token.IsCancellationRequested);
     }
 
     /// <summary>Draws a whole side into one bitmap at <paramref name="dpi"/> (kept under ~120 megapixels).</summary>
@@ -274,7 +274,7 @@ public sealed class PrintEngine
     /// <summary>Moves or copies the printed PDF when the user asked for that → (note for the report, new path if moved).</summary>
     private static (string Note, string? NewPath) AfterPrint(JobItem item, AfterPrintSettings after)
     {
-        if (after.Action == AfterPrintAction.Nothing || string.IsNullOrWhiteSpace(after.Folder)) return ("", null);
+        if (item.Blank || after.Action == AfterPrintAction.Nothing || string.IsNullOrWhiteSpace(after.Folder)) return ("", null);
         try
         {
             Directory.CreateDirectory(after.Folder);

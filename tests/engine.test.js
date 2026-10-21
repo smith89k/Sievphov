@@ -48,6 +48,23 @@ test('stand-in engine: printing sends progress and a report', async () => {
   assert.ok(events.some(ev => ev.event === 'progress' && ev.progress.status === 'printing'));
 });
 
+test('stand-in engine: blank paper is one empty page, Copies times, with no file', async () => {
+  const e = createEngine({ fake: true });
+  const s = M.normalize({ Copies: 3, Sides: 'LongEdge', Pages: 'Even' });
+  const [est] = await e.request('estimate', { items: [{ settings: s, pageCount: 1, blank: true }] });
+  assert.equal(est.sheets, 3);
+  assert.equal(est.pagesPrinted, 0);
+  const pv = await e.request('preview', { item: { blank: true, path: '', pageCount: 1, pageSizes: [[595, 842]], settings: s }, side: 0 });
+  assert.equal(pv.sides, 1);
+  assert.doesNotMatch(Buffer.from(pv.svg, 'base64').toString(), /#fafafa/);
+  const done = new Promise(res => e.onEvent(ev => { if (ev.event === 'done') res(ev); }));
+  await e.request('print', { items: [{ id: 'b1', blank: true, path: '', pageCount: 1, pageSizes: [[595, 842]], settings: s }] });
+  const [row] = (await done).report;
+  assert.equal(row.fileName, 'Blank paper');
+  assert.equal(row.status, 'Printed');
+  assert.equal(row.sheets, 3);
+});
+
 test('real engine missing: a clear error, not a crash', async () => {
   const e = createEngine({ exe: path.join(os.tmpdir(), 'no-such-engine.exe') });
   await assert.rejects(e.request('printers'), err => err.reason === 'engine' && /missing/.test(err.message));

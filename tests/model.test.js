@@ -148,6 +148,19 @@ test('job files: same shape as version 1, presets found by id or by name', () =>
   assert.equal(M.jobRepeat({ Repeat: 5000 }), 999);
 });
 
+test('job files keep blank paper rows (no file) in their place', () => {
+  const { lib, a } = twoPresets();
+  const x = item(1), blank = { ...item(2), blank: true, path: '' };
+  M.applyPreset([x, blank], a);
+  const job = M.toJob([x, blank, item(3)]);
+  assert.equal(job.Items[1].Blank, true);
+  assert.equal(job.Items[1].FilePath, '');
+  assert.equal('Blank' in job.Items[0], false, 'file rows look as in version 1');
+  const back = M.fromJob(JSON.parse(JSON.stringify(job)), lib);
+  assert.deepEqual(back.map(e => e.blank), [false, true, false]);
+  assert.equal(back[1].presetName, 'A');
+});
+
 test('report CSV quotes commas and quotes; per-printer totals; Khmer digits', () => {
   const csv = M.reportCsv([{ fileName: 'a, b.pdf', folder: 'C:\\x', printer: 'HP', preset: 'Book "2"', status: 'Printed', message: '', pages: 3, sheets: 2, copies: 1 }]);
   assert.match(csv, /^File,Folder,Printer,Preset,Status/);

@@ -97,8 +97,11 @@ public static class Program
     private static object Estimate(JsonElement req) =>
         req.GetProperty("items").EnumerateArray().Select(e =>
         {
-            var est = Estimator.ForItem(Settings(e), e.GetProperty("pageCount").GetInt32());
-            return new { pagesSelected = est.PagesSelected, pagesPrinted = est.PagesPrinted, sides = est.SidesPerCopy, sheets = est.Sheets, error = est.Error };
+            bool blank = e.TryGetProperty("blank", out var b) && b.ValueKind == JsonValueKind.True;
+            var s = Settings(e);
+            if (blank) s.Pages = PageSelection.All;   // blank paper: one empty page, Copies times
+            var est = Estimator.ForItem(s, blank ? 1 : e.GetProperty("pageCount").GetInt32());
+            return new { pagesSelected = est.PagesSelected, pagesPrinted = blank ? 0 : est.PagesPrinted, sides = est.SidesPerCopy, sheets = est.Sheets, error = est.Error };
         }).ToList();
 
     /// <summary>One sheet side as a PNG, drawn by the same code as printing, on the file's printer and paper.</summary>
@@ -107,7 +110,7 @@ public static class Program
         var item = Item(req.GetProperty("item"));
         int maxPx = req.TryGetProperty("maxPx", out var m) ? Math.Clamp(m.GetInt32(), 100, 4000) : 1400;
         var s = item.Settings;
-        var pages = PageRangeParser.SelectPages(s, item.PageCount);
+        var pages = item.Blank ? new List<int> { 1 } : PageRangeParser.SelectPages(s, item.PageCount);
         var sides = SheetLayout.Build(pages, s);
         if (sides.Count == 0) throw new InvalidOperationException("No pages selected (check the page range)");
         int index = Math.Clamp(req.TryGetProperty("side", out var sd) ? sd.GetInt32() : 0, 0, sides.Count - 1);
@@ -118,14 +121,14 @@ public static class Program
         int w = Math.Max(1, (int)(sheet.Width * scale)), h = Math.Max(1, (int)(sheet.Height * scale));
         int dpi = Math.Clamp((int)(scale * 100), 30, 300);
 
-        using var renderer = new SheetRenderer(item, Bytes(item.FilePath), maxDpi: dpi);
+        using var renderer = item.Blank ? null : new SheetRenderer(item, Bytes(item.FilePath), maxDpi: dpi);
         using var bmp = new Bitmap(w, h, PixelFormat.Format32bppPArgb);
         using (var g = Graphics.FromImage(bmp))
         {
             g.Clear(Color.White);
             g.ScaleTransform(scale, scale);
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            renderer.DrawSide(g, printable, side);
+            renderer?.DrawSide(g, printable, side);
             using var pen = new Pen(Color.FromArgb(110, 106, 63, 216), 1f / scale) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash };
             g.DrawRectangle(pen, printable.X, printable.Y, printable.Width, printable.Height);
             if (s.Layout == LayoutMode.Booklet) DrawFold(g, s, sheet, printable, scale);
@@ -245,6 +248,7 @@ public static class Program
     {
         Id = e.TryGetProperty("id", out var id) ? id.ToString() : "",
         FilePath = Str(e, "path"),
+        Blank = e.TryGetProperty("blank", out var b) && b.ValueKind == JsonValueKind.True,
         Password = e.TryGetProperty("password", out var pw) && pw.ValueKind == JsonValueKind.String ? pw.GetString() : null,
         PageCount = e.GetProperty("pageCount").GetInt32(),
         PageSizes = e.GetProperty("pageSizes").EnumerateArray()

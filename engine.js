@@ -133,19 +133,20 @@ function fakeSides(s, pages) {
   return { sides: out, twoSided };
 }
 
-function fakeEstimate(s, n) {
+function fakeEstimate(s, n, blank = false) {
   try {
-    const pages = fakePages(s, n);
+    if (blank) s = { ...s, Pages: 'All', Reverse: false };   // blank paper: one empty page, Copies times (as PrintEngine)
+    const pages = fakePages(s, blank ? 1 : n);
     if (!pages.length) return { pagesSelected: 0, pagesPrinted: 0, sides: 0, sheets: 0, error: 'No pages selected' };
     const { sides, twoSided } = fakeSides(s, pages), copies = Math.max(1, s.Copies || 1);
     const perCopy = twoSided ? new Set(sides.map(x => x.sheet)).size : sides.length;
-    return { pagesSelected: pages.length, pagesPrinted: pages.length * copies, sides: sides.length, sheets: perCopy * copies, error: null };
+    return { pagesSelected: pages.length, pagesPrinted: blank ? 0 : pages.length * copies, sides: sides.length, sheets: perCopy * copies, error: null };
   } catch (e) { return { pagesSelected: 0, pagesPrinted: 0, sides: 0, sheets: 0, error: e.message }; }
 }
 
 // A drawn sheet: white paper, the page slots with their page numbers, the printable edge dashed.
 function fakePreview(item, side, maxPx) {
-  const s = item.settings || {}, pages = fakePages(s, item.pageCount);
+  const s = item.blank ? { ...item.settings, Pages: 'All' } : item.settings || {}, pages = fakePages(s, item.blank ? 1 : item.pageCount);
   const { sides, twoSided } = fakeSides(s, pages);
   if (!sides.length) throw new Error('No pages selected (check the page range)');
   const i = Math.max(0, Math.min(sides.length - 1, side | 0)), sd = sides[i];
@@ -159,7 +160,7 @@ function fakePreview(item, side, maxPx) {
   let cells = '';
   sd.slots.forEach((p, k) => {
     const c = k % cols, r = Math.floor(k / cols), x = m + c * gw + 8, y = m + r * gh + 8, w = gw - 16, h = gh - 16;
-    if (p == null) return;
+    if (p == null || item.blank) return;
     cells += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fafafa" stroke="#bbb"/>` +
       `<rect x="${x + 16}" y="${y + 16}" width="${w * 0.5}" height="14" fill="#ddd"/>` +
       Array.from({ length: 9 }, (_, j) => `<rect x="${x + 16}" y="${y + 50 + j * 26}" width="${w - 32 - (j % 3) * 30}" height="8" fill="#e6e6e6"/>`).join('') +
@@ -189,7 +190,7 @@ function fakeEngine(emit, listeners) {
     printers: () => FAKE_PRINTERS.map(p => ({ name: p.name, isDefault: p.isDefault })),
     caps: a => (FAKE_PRINTERS.find(p => p.name === a.name) || FAKE_PRINTERS.find(p => p.isDefault)).caps,
     open: a => fakeOpen(a.path),
-    estimate: a => (a.items || []).map(it => fakeEstimate(it.settings || {}, it.pageCount | 0)),
+    estimate: a => (a.items || []).map(it => fakeEstimate(it.settings || {}, it.pageCount | 0, !!it.blank)),
     preview: a => fakePreview(a.item, a.side, a.maxPx),
     print: a => {
       if (run) throw new Error('Already printing');
@@ -198,14 +199,14 @@ function fakeEngine(emit, listeners) {
       const r = run;
       // as PrintEngine.RunAll: the whole list `repeat` times, set after set; a file with an error is skipped afterwards
       const repeat = Math.max(1, Math.min(999, a.repeat | 0 || 1)), count = items.length * repeat;
-      const rows = items.map(it => ({ id: it.id, fileName: path.basename(it.path), folder: path.dirname(it.path), printer: it.settings.PrinterName || FAKE_PRINTERS[0].name,
+      const rows = items.map(it => ({ id: it.id, fileName: it.blank ? 'Blank paper' : path.basename(it.path), folder: it.blank ? '' : path.dirname(it.path), printer: it.settings.PrinterName || FAKE_PRINTERS[0].name,
         copies: it.settings.Copies || 1, pages: 0, sheets: 0, sets: 0, status: '', message: '', started: new Date().toISOString() }));
       const failed = new Set();
       (async () => {
         for (let set = 0; set < repeat; set++) {
           const label = repeat > 1 ? `Set ${set + 1} of ${repeat} · ` : '';
           for (let f = 0; f < items.length; f++) {
-            const it = items[f], row = rows[f], k = set * items.length + f, est = fakeEstimate(it.settings || {}, it.pageCount);
+            const it = items[f], row = rows[f], k = set * items.length + f, est = fakeEstimate(it.settings || {}, it.pageCount, !!it.blank);
             const prog = (status, message, done) => emit({ event: 'progress', progress: { id: it.id, status, message, file: k + 1, files: count, fraction: done / count } });
             if (failed.has(f)) continue;
             if (r.stopped) { row.status = 'Stopped'; row.message = row.sets ? `Not printed (stopped) — ${row.sets} sets printed` : 'Not printed (stopped)'; failed.add(f); prog('stopped', row.message, k); continue; }

@@ -18,6 +18,7 @@ const ICONS = {
   eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
   calc:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.5 7h7M8.5 11h1M12 11h1M15 11h.5M8.5 14.5h1M12 14.5h1M15 14.5h.5M8.5 18h1M12 18h3.5"/>',
   stack:'<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 12.5l9 5 9-5M3 16.5l9 5 9-5"/>',
+  blank:'<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5"/>',
   doc:'<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5M8.5 13h7M8.5 16.5h7"/>',
   printer:'<path d="M7 9V4h10v5"/><path d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v6H7z"/>',
   pages:'<rect x="4" y="5" width="11" height="15" rx="1.5"/><path d="M8 3h10.5A1.5 1.5 0 0 1 20 4.5V17"/>',
@@ -92,7 +93,8 @@ async function eng(cmd, args) {
   if (r.ok) return r.result;
   throw Object.assign(new Error(r.error || 'Engine error'), { reason: r.reason || 'other' });
 }
-const engItem = it => ({ id: it.id, path: it.path, password: it.password || null, pageCount: it.pageCount, pageSizes: it.pageSizes, settings: it.settings });
+const engItem = it => ({ id: it.id, path: it.path, blank: !!it.blank, password: it.password || null, pageCount: it.pageCount, pageSizes: it.pageSizes, settings: it.settings });
+const estItem = it => ({ settings: it.settings, pageCount: it.pageCount, blank: !!it.blank });
 
 /* ---------- small boxes: toast, question, text, busy (no Windows message boxes, as in Sastra PDF) ---------- */
 let toastT = 0;
@@ -190,11 +192,11 @@ const presetChip = it => it.presetName != null
 function rowHtml(it, i) {
   const s = it.settings, st = statusOf(it);
   const chip = presetChip(it);
-  return `<div class="row${state.sel.has(it.id) ? ' sel' : ''}${it.checked ? '' : ' off'}" data-id="${it.id}" draggable="true" role="option" aria-selected="${state.sel.has(it.id)}" title="${esc(it.path)}">
+  return `<div class="row${state.sel.has(it.id) ? ' sel' : ''}${it.checked ? '' : ' off'}${it.blank ? ' blank' : ''}" data-id="${it.id}" draggable="true" role="option" aria-selected="${state.sel.has(it.id)}" title="${esc(it.blank ? BLANK_TIP : it.path)}">
     <span class="center"><input type="checkbox" class="tick" ${it.checked ? 'checked' : ''} ${it.pageCount ? '' : 'disabled'} aria-label="Print this file"></span>
     <span class="num">${i + 1}</span>
-    <span class="file"><span class="doc">${svg('doc')}</span><span class="nm"><b>${esc(it.name)}</b><small>${esc(it.folder)}</small></span></span>
-    <span class="pages">${it.pageCount || '—'}</span>
+    <span class="file"><span class="doc">${svg(it.blank ? 'blank' : 'doc')}</span><span class="nm"><b>${esc(it.name)}</b><small>${esc(it.folder)}</small></span></span>
+    <span class="pages">${it.blank ? '—' : it.pageCount || '—'}</span>
     <span class="meta">${chip}</span>
     <span class="meta${s.PrinterName ? '' : ' dim'}">${esc(s.PrinterName || 'Default printer')}</span>
     <span class="meta c-tray${s.Tray ? '' : ' dim'}">${esc(trayText(s))}</span>
@@ -221,7 +223,7 @@ function updateButtons() {
   $('#bRemove').disabled = !sel || !idle; $('#bUp').disabled = !sel || !idle; $('#bDown').disabled = !sel || !idle;
   $('#bPreview').disabled = !any; $('#bEstimate').disabled = !ticked().length;
   $('#bSaveJob').disabled = !any; $('#bPrintTb').disabled = !ticked().length || !idle;
-  for (const id of ['#bAddFiles', '#bAddFolder', '#bOpenJob']) $(id).disabled = !idle;
+  for (const id of ['#bAddFiles', '#bAddFolder', '#bBlank', '#bOpenJob']) $(id).disabled = !idle;
 }
 /** Everything that shows item state: rows, panel, totals; and new estimates from the engine. */
 function refresh({ estimate = true, panel = true } = {}) {
@@ -395,12 +397,18 @@ function addPdfs(paths, preset, init) {
   return adding;
 }
 async function addPdfsNow(paths, preset, init) {
-  const known = new Set(state.items.map(it => it.path.toLowerCase()));
+  const known = new Set(state.items.filter(it => !it.blank).map(it => it.path.toLowerCase()));
   const b = busy(), added = [], problems = [];
   let skipped = 0;
   try {
     for (let i = 0; i < paths.length; i++) {
       const p = paths[i];
+      if (p == null) {   // blank paper from a job: nothing to read
+        const it = blankItem(null);
+        if (init) init(it, i);
+        state.items.push(it); added.push(it);
+        continue;
+      }
       if (known.has(p.toLowerCase())) { skipped++; continue; }
       known.add(p.toLowerCase());
       const name = p.split(/[\\/]/).pop();
@@ -430,6 +438,30 @@ async function addPdfsNow(paths, preset, init) {
   if (problems.length) toast(problems.length === 1 ? problems[0] : `${problems.length} files could not be read — see the Status column.`, true);
   else if (skipped) toast(`${plural(skipped, 'file')} ${skipped === 1 ? 'was' : 'were'} already in the list.`);
   else if (added.length > 1) toast(`Added ${plural(added.length, 'file')}.`);
+}
+/* ---------- blank paper: a row with no file, put between files as a separator ---------- */
+const BLANK_TIP = 'Blank paper: a separator sheet with nothing printed on it. It has the same settings as a file (printer, tray, paper, sides); Copies = how many blank sheets.';
+/** Takes the settings and preset of `from` (the row above it), with 1 copy of all pages (1 copy = 1 sheet). */
+function blankItem(from) {
+  const it = { id: newItemId(), blank: true, path: '', name: 'Blank paper', folder: 'Separator — nothing printed', pageCount: 1,
+    pageSizes: [from?.pageSizes?.[0] || [595.28, 841.89]], password: null,
+    settings: M.defaults(), presetId: null, presetName: null, modified: false, checked: true, status: 'wait', message: '' };
+  if (from) Object.assign(it, { settings: M.clone(from.settings), presetId: from.presetId, presetName: from.presetName });
+  else { const p = M.defaultPreset(state.lib); if (p) M.applyPreset([it], p); }
+  Object.assign(it.settings, { Copies: 1, Pages: 'All', PageRange: '' });
+  M.markModified(it, state.lib);
+  return it;
+}
+/** Blank paper after the last selected row, or at the end of the list, with that row's settings. */
+function insertBlankCmd() {
+  if (state.printing) return;
+  const sel = selected(), after = sel[sel.length - 1] || state.items[state.items.length - 1] || null;
+  const it = blankItem(after);
+  state.items.splice(after ? state.items.indexOf(after) + 1 : 0, 0, it);
+  selectOnly([it.id]);
+  markDirty(); refresh(); buildPanel();
+  rowsEl.querySelector(`.row[data-id="${it.id}"]`)?.scrollIntoView({ block: 'nearest' });
+  toast(after ? `Blank paper added after ${after.name}, with its printer, tray and paper.` : 'Blank paper added.');
 }
 async function openPdf(path, it) {
   try {
@@ -473,7 +505,7 @@ async function runEstimate() {
   const list = state.items.filter(it => it.pageCount > 0), seq = ++estSeq;
   if (!list.length) { state.est.clear(); renderSummary(); return; }
   try {
-    const res = await eng('estimate', { items: list.map(it => ({ settings: it.settings, pageCount: it.pageCount })) });
+    const res = await eng('estimate', { items: list.map(estItem) });
     if (seq !== estSeq) return;
     state.est.clear();
     list.forEach((it, i) => state.est.set(it.id, res[i]));
@@ -838,7 +870,7 @@ function buildPanel() {
   }
   const head = document.createElement('section');
   head.className = 'tsec';
-  head.innerHTML = `<div class="sel-head"><span class="doc">${svg(items.length > 1 ? 'pages' : 'doc')}</span><span class="nm"><b></b><small></small></span></div><div class="preset-line"><span class="pl"></span><button class="btn reset" id="pReset" title="Put back the preset's settings: undo the changes made by hand (*)">${svg('reset')}<span>Reset</span></button></div>`;
+  head.innerHTML = `<div class="sel-head"><span class="doc">${svg(items.length > 1 ? 'pages' : items[0].blank ? 'blank' : 'doc')}</span><span class="nm"><b></b><small></small></span></div><div class="preset-line"><span class="pl"></span><button class="btn reset" id="pReset" title="Put back the preset's settings: undo the changes made by hand (*)">${svg('reset')}<span>Reset</span></button></div>`;
   box.appendChild(head);
   editor = buildEditor(box, {
     items: selected,
@@ -878,7 +910,9 @@ function syncPanelSummary() {
   const e = items.length === 1 ? state.est.get(items[0].id) : null;
   const bad = items.length === 1 && items[0].message && ['error', 'locked', 'stopped'].includes(items[0].status) ? items[0].message : '';
   head.classList.toggle('bad', !!bad);
-  head.textContent = bad ? bad : items.length === 1
+  head.textContent = bad ? bad : items.length === 1 && items[0].blank
+    ? `Separator · ${plural(e ? e.sheets : items[0].settings.Copies, 'blank sheet')} (= Copies)`
+    : items.length === 1
     ? `${plural(items[0].pageCount, 'page')}${e ? (e.error ? ' · check the pages' : ` · prints ${plural(e.pagesPrinted, 'page')} on ${plural(e.sheets, 'sheet')}`) : ''}`
     : `${plural(pages, 'page')} · about ${plural(t.sheets, 'sheet')}`;
 }
@@ -1010,7 +1044,7 @@ async function openJob(path) {
     if (c === 2) { state.items = []; state.sel.clear(); state.est.clear(); }
     if (c === 2) state.repeat = M.jobRepeat(r.data);
   } else state.repeat = M.jobRepeat(r.data);
-  const paths = await desk.resolveJobPaths(path, r.data.Items.filter(e => e && typeof e.FilePath === 'string'));
+  const paths = await desk.resolveJobPaths(path, r.data.Items.filter(e => e && typeof e.FilePath === 'string'));   // null = blank paper
   await addPdfs(paths, null, (it, i) => { const e = entries[i]; Object.assign(it, { settings: e.settings, presetId: e.presetId, presetName: e.presetName, modified: e.modified, checked: e.checked }); });
   state.jobPath = path; state.jobDirty = false; updateTitle();
   toast(`Opened ${path.split(/[\\/]/).pop()}.`);
@@ -1176,7 +1210,7 @@ function openPreview(start) {
 
   // ---- what each file prints: sides per copy, from one estimate for all of them
   async function countSides(list) {
-    const res = await eng('estimate', { items: list.map(it => ({ settings: it.settings, pageCount: it.pageCount })) }).catch(() => null);
+    const res = await eng('estimate', { items: list.map(estItem) }).catch(() => null);
     list.forEach((it, i) => sidesOf.set(it.id, res?.[i] ?? { sides: 0, sheets: 0, pagesPrinted: 0, error: 'Could not count the sheets' }));
   }
   const guessLandscape = it => {
@@ -1186,7 +1220,7 @@ function openPreview(start) {
   };
   const factLine = it => {
     const s = it.settings, e = sidesOf.get(it.id) || {};
-    const prints = e.error ? e.error : `${plural(e.sheets || 0, 'sheet')} · ${plural(e.pagesPrinted || 0, 'page')}${s.Copies > 1 ? ` (${plural(s.Copies, 'copy', 'copies')})` : ''}`;
+    const prints = e.error ? e.error : it.blank ? plural(e.sheets || 0, 'blank sheet') : `${plural(e.sheets || 0, 'sheet')} · ${plural(e.pagesPrinted || 0, 'page')}${s.Copies > 1 ? ` (${plural(s.Copies, 'copy', 'copies')})` : ''}`;
     return [printerOf(s), trayText(s), s.PaperSize || 'Printer paper', s.Layout === 'Booklet' ? bindingText(s) : sidesText(s), prints];
   };
   const presetSelect = it => `<select class="pv-preset" aria-label="Preset of ${esc(it.name)}" title="Pick a preset to see how this file would print with it">
@@ -1276,7 +1310,7 @@ function openPreview(start) {
         el.title = `${r.twoSided ? (r.isBack ? 'Back' : 'Front') : 'Sheet ' + r.sheet} · ${pagesOf(r)} — click to see it large`;
         el.dataset.pages = r.slots.map(p => p ?? 'blank').join(' | ');
         const fig = el.closest('.pv-sheet'), [f, b] = fig.querySelectorAll('.pv-side');
-        fig.querySelector('figcaption').textContent = `Sheet ${r.sheet} · ` + (b || r.twoSided
+        fig.querySelector('figcaption').textContent = it.blank ? `Blank sheet${it.settings.Copies > 1 ? ` × ${it.settings.Copies}` : ''}` : `Sheet ${r.sheet} · ` + (b || r.twoSided
           ? `front ${f.dataset.pages || '…'}${b ? ` · back ${b.dataset.pages || '…'}` : ''}`
           : `page${r.slots.length > 1 ? 's' : ''} ${el.dataset.pages}`);
       }
@@ -1320,7 +1354,7 @@ function openPreview(start) {
       stage.innerHTML = `<img alt="Sheet preview" src="${srcOf(r)}">`;
       sheetIn = { w: r.widthIn, h: r.heightIn };
       fitImg();
-      q('#pvInfo').textContent = `${it.name} · ${M.presetLabel(it)}${it.modified && it.presetName != null ? ' *' : ''}${it.settings.Layout === 'Booklet' ? ' · bound on the ' + (it.settings.Binding === 'Right' ? 'right' : 'left') : ''} · sheet ${r.sheet}${r.twoSided ? (r.isBack ? ', back' : ', front') : ''} · ${pagesOf(r)} · ${r.widthIn.toFixed(2)} × ${r.heightIn.toFixed(2)} in`;
+      q('#pvInfo').textContent = `${it.name} · ${M.presetLabel(it)}${it.modified && it.presetName != null ? ' *' : ''}${it.settings.Layout === 'Booklet' ? ' · bound on the ' + (it.settings.Binding === 'Right' ? 'right' : 'left') : ''} · ${it.blank ? `blank sheet${it.settings.Copies > 1 ? ' × ' + it.settings.Copies : ''}, nothing printed` : `sheet ${r.sheet}${r.twoSided ? (r.isBack ? ', back' : ', front') : ''} · ${pagesOf(r)}`} · ${r.widthIn.toFixed(2)} × ${r.heightIn.toFixed(2)} in`;
     } catch (e) {
       if (my !== seq) return;
       stage.innerHTML = `<span class="none">${esc(e.message)}</span>`; q('#pvInfo').textContent = '';
@@ -1410,8 +1444,9 @@ rowsEl.addEventListener('contextmenu', e => {
     { label: 'Tick', icon: 'check', run: () => { for (const it of selected()) if (it.pageCount) it.checked = true; markDirty(); refresh({ estimate: false, panel: false }); } },
     { label: 'Untick', icon: 'uncheck', run: () => { for (const it of selected()) it.checked = false; markDirty(); refresh({ estimate: false, panel: false }); } },
     { label: 'Preview', kb: 'F5', icon: 'eye', run: () => openPreview(byId(row.dataset.id)) },
-    { label: 'Show in folder', icon: 'open', run: () => desk?.showInFolder(byId(row.dataset.id).path) },
+    { label: 'Show in folder', icon: 'open', disabled: !!byId(row.dataset.id).blank, run: () => desk?.showInFolder(byId(row.dataset.id).path) },
     '-',
+    { label: 'Insert blank paper after', kb: 'Ctrl+B', icon: 'blank', disabled: !idle, run: insertBlankCmd },
     { label: n > 1 ? `Remove ${n} files from list` : 'Remove from list', kb: 'Del', icon: 'trash', disabled: !idle, run: () => removeItems(selected()) }
   ]);
 });
@@ -1506,6 +1541,7 @@ document.querySelectorAll('.menu-btn').forEach(b => b.addEventListener('click', 
 $('#bAbout').onclick = openAbout;
 $('#bAddFiles').onclick = $('#bAddFiles2').onclick = addFilesCmd;
 $('#bAddFolder').onclick = $('#bAddFolder2').onclick = addFolderCmd;
+$('#bBlank').onclick = insertBlankCmd;
 $('#bOpenJob').onclick = openJobCmd;
 $('#bSaveJob').onclick = () => saveJob(false);
 $('#bPrintTb').onclick = printCmd;
@@ -1532,6 +1568,7 @@ resizer('#toolsResizer', '--tools-w', 'sievphov-tools-w', 300, 520, x => innerWi
 const COMMANDS = {
   addFiles: addFilesCmd, addFolder: addFolderCmd, openJob: openJobCmd, saveJob: () => saveJob(false), saveJobAs: () => saveJob(true), print: printCmd, afterPrint: openAfterPrint,
   selectAll: () => selectOnly(state.items.map(it => it.id)), remove: () => removeItems(selected()),
+  insertBlank: insertBlankCmd,
   removePrinted: () => removeItems(state.items.filter(it => it.status === 'printed')), clear: clearList,
   up: () => moveSelected(-1), down: () => moveSelected(1), copySettings, pasteSettings,
   reset: () => { M.resetToPreset(selected(), state.lib); markDirty(); refresh(); },
@@ -1552,6 +1589,7 @@ document.addEventListener('keydown', e => {
   if (ctrl && !e.shiftKey && k === 'o') return run('addFiles');
   if (ctrl && e.shiftKey && k === 'o') return run('addFolder');
   if (ctrl && k === 'j') return run('openJob');
+  if (ctrl && !e.shiftKey && k === 'b') return run('insertBlank');
   if (ctrl && !e.shiftKey && k === 's') return run('saveJob');
   if (ctrl && e.shiftKey && k === 's') return run('saveJobAs');
   if (ctrl && k === 'p') return run('print');

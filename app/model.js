@@ -2,7 +2,9 @@
 // Settings use the engine's names (PascalCase, enum values as words), the same as .svpv jobs and presets.json from
 // version 1, so old files keep working. An item = one PDF in the list:
 //   { id, path, name, folder, pageCount, pageSizes, password, settings, presetId, presetName, modified, checked,
-//     status: 'wait'|'printing'|'printed'|'error'|'stopped'|'locked', message }
+//     status: 'wait'|'printing'|'printed'|'error'|'stopped'|'locked', message, blank }
+// blank: true = Blank paper, a row with no file (path ''), put between files as a separator. It has a file's settings
+// (printer, tray, paper, sides …) and prints one empty page, Copies times.
 (function (root) {
 'use strict';
 
@@ -177,7 +179,8 @@ function toJob(items, repeat = 1) {
     Version: 1,
     ...(repeat > 1 ? { Repeat: repeat } : {}),   // print the whole list this many times; left out at 1 (as version 1 files)
     Items: items.map(it => ({
-      FilePath: it.path, Checked: !!it.checked, PresetId: it.presetId ?? null, PresetName: it.presetName ?? null,
+      ...(it.blank ? { Blank: true } : {}),
+      FilePath: it.blank ? '' : it.path, Checked: !!it.checked, PresetId: it.presetId ?? null, PresetName: it.presetName ?? null,
       Modified: !!it.modified, Settings: clone(it.settings)
     }))
   };
@@ -193,7 +196,7 @@ function fromJob(data, lib) {
     const settings = normalize(e.Settings);
     const p = findPreset(lib, e.PresetId) || findPresetByName(lib, e.PresetName);
     return {
-      path: e.FilePath, relativePath: typeof e.RelativePath === 'string' ? e.RelativePath : null, checked: e.Checked !== false, settings,
+      blank: e.Blank === true, path: e.Blank === true ? '' : e.FilePath, relativePath: typeof e.RelativePath === 'string' ? e.RelativePath : null, checked: e.Checked !== false, settings,
       presetId: p ? p.Id : null, presetName: p ? p.Name : null,
       modified: p ? !equal(settings, p.Settings) : (e.PresetId != null || !!e.Modified)
     };
