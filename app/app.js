@@ -923,7 +923,7 @@ function buildPanel() {
     lib: state.lib,
     set(path, value) {
       if (state.printing) { toast('Settings can be changed again when printing has finished.'); syncPanel(); return; }
-      M.setField(selected(), path, value, state.lib);
+      M.setField(selected(), path, value, state.lib, defaultPrinter());
       markDirty(); refresh();
     }
   });
@@ -1051,7 +1051,7 @@ function openPresetManager(selectId) {
     const input = nameEl.querySelector('input');
     input.addEventListener('change', () => { const v = input.value.trim(); if (v) cur.Name = M.uniqueName(draft, v, cur); input.value = cur.Name; drawList(); });
     const holder = { get settings() { return cur.Settings; } };
-    ed = buildEditor(editEl, { items: () => [holder], lib: null, set(path, value) { M.setField([{ settings: cur.Settings, presetId: null }], path, value, draft); ed.sync(); drawList(); sampleSoon(); } },
+    ed = buildEditor(editEl, { items: () => [holder], lib: null, set(path, value) { M.setField([{ settings: cur.Settings, presetId: null }], path, value, draft, defaultPrinter()); ed.sync(); drawList(); sampleSoon(); } },
       { folded: false, tabs: { bar: tabsEl, key: 'sievphov-preset-tab', first: 'layout',
         names: { printer: 'Printer', paper: 'Paper', layout: 'Layout', numbers: 'Numbers', watermark: 'Watermark', logo: 'Logo' } } });
     sampleSoon(0);
@@ -1215,28 +1215,31 @@ async function swapTrays(list) {
   await Promise.all([...new Set(list.map(it => printerOf(it.settings)))].filter(Boolean).map(capsAsync));
   const groups = M.missingTrays(list, n => state.caps.get(n) || null, defaultPrinter());
   if (!groups.length) return [];
-  for (const g of groups) { g.to = M.rememberedSwap(state.settings.TraySwaps, g.printer, g.tray, g.trays); g.last = g.to != null; }
+  for (const g of groups) { g.to = M.rememberedSwap(state.settings.TraySwaps, g.printer, g.tray, g.trays, g.from); g.last = g.to != null; }
   const answer = await askTrays(groups);
   if (!answer) return null;
   groups.forEach((g, i) => { g.to = answer.to[i]; });
   if (answer.remember) {
-    for (const g of groups) state.settings.TraySwaps = M.rememberSwap(state.settings.TraySwaps, g.printer, g.tray, g.to);
+    for (const g of groups) state.settings.TraySwaps = M.rememberSwap(state.settings.TraySwaps, g.printer, g.tray, g.to, g.from);
     saveSettings();
   }
-  for (const g of groups) for (const it of g.items) { it.settings.Tray = g.to; M.markModified(it, state.lib); }
+  for (const g of groups) for (const it of g.items) { it.settings.Tray = g.to; it.settings.TrayPrinter = g.printer; M.markModified(it, state.lib); }
   markDirty(); refresh({ estimate: false });
   return groups;
 }
-/** The Swap trays box: one row per printer and missing tray. → { to: [tray per group], remember } or null. */
+/**
+ * The Swap trays box: one row per missing tray, "printer A · Tray 1 → printer B · [its trays]", with the files under it.
+ * → { to: [tray per group], remember } or null.
+ */
 function askTrays(groups) {
   return new Promise(res => {
-    const row = (g, i) => `<tr><td>${esc(g.printer)}</td><td>${esc(g.tray)}</td>
-      <td><select data-g="${i}" aria-label="Tray to use on ${esc(g.printer)} instead of ${esc(g.tray)}">${['', ...g.trays].map(t => `<option value="${esc(t)}"${t === (g.to ?? '') ? ' selected' : ''}>${esc(t || 'As in printer')}</option>`).join('')}</select>${g.last ? '<small class="last">As last time</small>' : ''}</td>
+    const row = (g, i) => `<tr><td class="from"><b>${esc(g.from || 'Picked on another printer')}</b><span>${esc(g.tray)}</span></td><td class="arrow">→</td>
+      <td class="to"><b>${esc(g.printer)}</b><select data-g="${i}" aria-label="Tray to use on ${esc(g.printer)} instead of ${esc(g.tray)}">${['', ...g.trays].map(t => `<option value="${esc(t)}"${t === (g.to ?? '') ? ' selected' : ''}>${esc(t || 'As in printer')}</option>`).join('')}</select>${g.last ? '<small class="last">As last time</small>' : ''}</td>
       <td class="n">${g.items.length}</td></tr>
       <tr class="files"><td colspan="4">${g.items.map(it => esc(it.name)).join(' · ')}</td></tr>`;
     const one = groups.length === 1 && groups[0].items.length === 1;
-    const { box, close } = openBox('wide', `<h2>Swap trays</h2><p class="detail">${one ? 'This file prints' : 'These files print'} on a printer that does not have ${one ? 'its' : 'their'} tray. Pick the tray to use instead.</p>
-      <table class="est swap"><thead><tr><th>Printer</th><th>Their tray</th><th>Use this tray</th><th class="n">Files</th></tr></thead><tbody>${groups.map(row).join('')}</tbody></table>
+    const { box, close } = openBox('wide', `<h2>Swap trays</h2><p class="detail">${one ? 'This file prints' : 'These files print'} on a printer that does not have ${one ? 'its' : 'their'} tray. For each tray, pick the tray of the new printer to use instead.</p>
+      <table class="est swap"><thead><tr><th>From</th><th></th><th>To</th><th class="n">Files</th></tr></thead><tbody>${groups.map(row).join('')}</tbody></table>
       <label class="chk"><input type="checkbox" id="swRemember" checked>Remember for next time</label>
       <div class="acts"><button class="btn outline" data-r="0">Cancel</button><button class="btn primary" data-r="1">Continue</button></div>`,
       { onCancel: () => { close(); res(null); } });

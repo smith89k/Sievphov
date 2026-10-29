@@ -48,6 +48,8 @@ public sealed class PrintSettings
     public string PaperSize { get; set; } = "";
     /// <summary>Paper tray (paper source). Empty = as set in the printer.</summary>
     public string Tray { get; set; } = "";
+    /// <summary>The printer the tray was picked on (for the app's Swap trays question; printing does not use it).</summary>
+    public string TrayPrinter { get; set; } = "";
     public OrientationMode Orientation { get; set; } = OrientationMode.Auto;
     public SidesMode Sides { get; set; } = SidesMode.OneSide;
 

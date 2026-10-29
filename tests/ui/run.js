@@ -275,6 +275,7 @@ app.whenReady().then(async () => {
     await waitFor(() => js(`!!document.querySelector('.modal .est.swap')`), 'Swap trays box');
     const swapText = await js(`document.querySelector('.modal').innerText`);
     check(swapText.includes('Swap trays') && swapText.includes('HP LaserJet M507') && swapText.includes('Tray 3'), 'Swap trays names the printer and the missing tray');
+    check((await js(`document.querySelector('.modal .est.swap td.from').innerText`)).includes('HP LaserJet Pro 4303'), 'and the printer the tray came from (HP 4303 · Tray 3 → HP M507)');
     check(await js(`[...document.querySelectorAll('.modal .est.swap select option')].map(o => o.textContent).join('|')`) === 'As in printer|Automatically Select|Tray 1|Tray 2', "the box offers the HP M507's own trays");
     await js(`(() => { const s = document.querySelector('.modal .est.swap select'); s.value = 'Tray 2'; })()`);
     await shot('09c-swap-trays');
