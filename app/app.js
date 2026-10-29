@@ -726,7 +726,7 @@ function buildEditor(root, ctx, { sections = SECTIONS, folded = true, tabs = nul
     if (tabs) {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'ptab'; b.dataset.sec = sec.sec; b.setAttribute('role', 'tab');
-      b.innerHTML = `${svg(sec.icon)}<span>${esc(sec.title)}</span>${sec.on ? '<i class="dot" title="On" hidden></i>' : ''}`;
+      b.title = sec.title; b.innerHTML = `${svg(sec.icon)}<span>${esc(tabs.names?.[sec.sec] || sec.title)}</span>${sec.on ? '<i class="dot" title="On" hidden></i>' : ''}`;
       b.addEventListener('click', () => showTab(sec.sec));
       b.addEventListener('keydown', e => {
         const d = { ArrowLeft: -1, ArrowRight: 1 }[e.key]; if (!d) return;
@@ -1009,7 +1009,6 @@ function openPresetManager(selectId) {
   // shaped like Sastra PDF's print screen: the preset on top, its settings on the left, one big sample sheet on the right
   const { box, close } = openBox('presets', `<div class="head"><h2>Manage presets</h2></div>
     <div class="pbar"><label class="ppick"><span>Preset</span><select id="pmPick"></select></label>
-      <button class="btn pnew" data-a="new">${svg('plus')}<span>New preset</span></button>
       <div class="picons" role="toolbar" aria-label="The chosen preset">
         <button class="btn" data-a="dup" title="Duplicate" aria-label="Duplicate">${svg('copy')}</button>
         <button class="btn" data-a="def" title="Make it the default (given to files you add)" aria-label="Make default">${svg('star')}</button>
@@ -1019,6 +1018,7 @@ function openPresetManager(selectId) {
         <span class="sep"></span>
         <button class="btn danger" data-a="del" title="Delete" aria-label="Delete">${svg('trash')}</button>
       </div>
+      <button class="btn pnew" data-a="new">${svg('plus')}<span>New preset</span></button>
       <div class="pio"><button class="btn" data-a="imp" title="Add presets from a .svpreset file">${svg('import')}<span>Import…</span></button><button class="btn" data-a="exp" title="Save all presets to a file, to copy them to another PC">${svg('export')}<span>Export…</span></button></div></div>
     <div class="pmain"><div class="pname" id="pmName"></div>
       <div class="ptabs" id="pmTabs" aria-label="Settings"></div>
@@ -1053,7 +1053,8 @@ function openPresetManager(selectId) {
     input.addEventListener('change', () => { const v = input.value.trim(); if (v) cur.Name = M.uniqueName(draft, v, cur); input.value = cur.Name; drawList(); });
     const holder = { get settings() { return cur.Settings; } };
     ed = buildEditor(editEl, { items: () => [holder], lib: null, set(path, value) { M.setField([{ settings: cur.Settings, presetId: null }], path, value, draft); ed.sync(); drawList(); sampleSoon(); } },
-      { folded: false, tabs: { bar: tabsEl, key: 'sievphov-preset-tab', first: 'layout' } });
+      { folded: false, tabs: { bar: tabsEl, key: 'sievphov-preset-tab', first: 'layout',
+        names: { printer: 'Printer', paper: 'Paper', layout: 'Layout', numbers: 'Numbers', watermark: 'Watermark', logo: 'Logo' } } });
     sampleSoon(0);
   }
   // Sample paper: 8 made-up numbered pages (upright or wide) with the chosen preset's settings, drawn by the engine as
