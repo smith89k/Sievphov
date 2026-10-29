@@ -179,6 +179,21 @@ test('booklet front or back only prints one-sided; old files read as both sides'
   assert.equal(M.isTwoSided(M.normalize({ Sides: 'LongEdge' })), true);
 });
 
+test('pages per sheet as Sastra PDF: the grid turns with the sheet, Auto shows pages largest', () => {
+  const two = M.normalize({ Layout: 'PagesPerSheet', Columns: 2, Rows: 1 }), six = M.normalize({ Layout: 'PagesPerSheet', Columns: 3, Rows: 2 });
+  assert.deepEqual(M.nUpGrid(two, false), [1, 2]);
+  assert.deepEqual(M.nUpGrid(two, true), [2, 1]);
+  assert.deepEqual(M.nUpGrid(six, false), [2, 3]);
+  assert.equal(M.sheetLandscape(two, [595, 842]), true);    // 2 upright pages side by side
+  assert.equal(M.sheetLandscape(two, [842, 595]), false);   // 2 wide pages stacked
+  assert.equal(M.sheetLandscape(six, [595, 842]), true);
+  assert.equal(M.sheetLandscape(six, [842, 595]), false);
+  assert.equal(M.sheetLandscape(M.normalize({ Layout: 'PagesPerSheet', Columns: 2, Rows: 2 }), [595, 842]), false);
+  assert.equal(M.sheetLandscape(M.normalize({ Layout: 'Booklet' }), [595, 842]), true);
+  assert.equal(M.sheetLandscape(M.normalize({}), [842, 595]), true);
+  assert.equal(M.sheetLandscape(M.normalize({ Orientation: 'Portrait' }), [842, 595]), false);
+});
+
 test('pages per sheet is Columns × Rows as one value', () => {
   const s = M.defaults();
   assert.equal(M.get(s, 'PerSheet'), '2x1');

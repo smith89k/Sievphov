@@ -1006,8 +1006,9 @@ function openPresetManager(selectId) {
   if (state.printing) { toast('Presets can be changed when printing has finished.'); return; }
   const draft = M.clone(state.lib);
   let cur = M.findPreset(draft, selectId) || M.findPreset(draft, state.presetPick?.Id) || draft.Presets[0] || null;
+  // shaped like Sastra PDF's print screen: the preset on top, its settings on the left, one big sample sheet on the right
   const { box, close } = openBox('presets', `<div class="head"><h2>Manage presets</h2></div>
-    <div class="plist"><ul id="pmList"></ul><div class="ptools">
+    <div class="pbar"><label class="ppick"><span>Preset</span><select id="pmPick"></select></label>
       <button class="btn pnew" data-a="new">${svg('plus')}<span>New preset</span></button>
       <div class="picons" role="toolbar" aria-label="The chosen preset">
         <button class="btn" data-a="dup" title="Duplicate" aria-label="Duplicate">${svg('copy')}</button>
@@ -1018,27 +1019,35 @@ function openPresetManager(selectId) {
         <span class="sep"></span>
         <button class="btn danger" data-a="del" title="Delete" aria-label="Delete">${svg('trash')}</button>
       </div>
-      <div class="pio"><button class="btn" data-a="imp" title="Add presets from a .svpreset file">${svg('import')}<span>Import…</span></button><button class="btn" data-a="exp" title="Save all presets to a file, to copy them to another PC">${svg('export')}<span>Export…</span></button></div></div></div>
+      <div class="pio"><button class="btn" data-a="imp" title="Add presets from a .svpreset file">${svg('import')}<span>Import…</span></button><button class="btn" data-a="exp" title="Save all presets to a file, to copy them to another PC">${svg('export')}<span>Export…</span></button></div></div>
     <div class="pmain"><div class="pname" id="pmName"></div>
-      <div class="psample"><div class="ps-head"><b>Sample paper</b><span id="pmSampleSum"></span></div><div class="ps-body" id="pmSample"></div></div>
       <div class="ptabs" id="pmTabs" aria-label="Settings"></div>
       <div class="pedit" id="pmEdit"></div></div>
+    <div class="psample"><div class="ps-head"><b>Sample paper</b>
+        <span class="seg" role="group" aria-label="Sample pages"><button data-wide="0">Upright pages</button><button data-wide="1">Wide pages</button></span>
+        <span id="pmSampleSum"></span></div>
+      <div class="ps-stage" id="pmStage"></div>
+      <div class="ps-nav"><button class="btn icon" id="pmPrev" title="Previous side (←)" aria-label="Previous side">${svg('left')}</button><span id="pmNum"></span>
+        <button class="btn icon" id="pmNext" title="Next side (→)" aria-label="Next side">${svg('right')}</button><span class="ps-pages" id="pmPages"></span>
+        <span class="ps-zoom" role="group" aria-label="Zoom"><button class="btn icon" id="pmOut" title="Smaller" aria-label="Smaller">−</button><button class="btn" id="pmFit" title="Show the whole sheet">Fit</button><button class="btn icon" id="pmIn" title="Larger" aria-label="Larger">+</button></span></div></div>
     <div class="acts"><span class="hint" style="margin-right:auto;color:var(--muted);font-size:12px">The default preset is given to files you add. Ctrl+1 … Ctrl+9 apply the first nine.</span>
       <button class="btn outline" data-a="cancel">Cancel</button><button class="btn primary" data-a="save">Save presets</button></div>`,
     { onCancel: () => close() });
-  const listEl2 = box.querySelector('#pmList'), editEl = box.querySelector('#pmEdit'), nameEl = box.querySelector('#pmName'), tabsEl = box.querySelector('#pmTabs');
+  const pickEl = box.querySelector('#pmPick'), editEl = box.querySelector('#pmEdit'), nameEl = box.querySelector('#pmName'), tabsEl = box.querySelector('#pmTabs');
   let ed = null;
   function drawList() {
-    listEl2.innerHTML = draft.Presets.map((p, i) => `<li data-id="${esc(p.Id)}" class="${cur && p.Id === cur.Id ? 'on' : ''}"><span class="nm">${esc(p.Name)}</span>${p.Id === draft.DefaultPresetId ? '<span class="def">Default</span>' : ''}<span class="kb">${i < 9 ? 'Ctrl+' + (i + 1) : ''}</span></li>`).join('') ||
-      '<li style="cursor:default;color:var(--muted)">No presets yet — click New preset.</li>';
+    pickEl.innerHTML = draft.Presets.map((p, i) => `<option value="${esc(p.Id)}">${esc(p.Name)}${p.Id === draft.DefaultPresetId ? ' · Default' : ''}${i < 9 ? ` · Ctrl+${i + 1}` : ''}</option>`).join('') ||
+      '<option value="">No presets yet — click New preset</option>';
+    pickEl.value = cur?.Id ?? ''; pickEl.disabled = !draft.Presets.length;
     const i = cur ? draft.Presets.indexOf(cur) : -1, dis = (a, off) => { box.querySelector(`[data-a="${a}"]`).disabled = off; };
     dis('dup', !cur); dis('del', !cur); dis('up', i <= 0); dis('down', i < 0 || i >= draft.Presets.length - 1);
     dis('def', !cur || cur.Id === draft.DefaultPresetId); dis('exp', !draft.Presets.length);
   }
   function drawEditor() {
     editEl.innerHTML = ''; nameEl.innerHTML = ''; tabsEl.innerHTML = '';
-    box.querySelector('.pmain').classList.toggle('empty', !cur);
-    if (!cur) { editEl.innerHTML = '<p class="hint" style="padding:20px">Pick a preset on the left, or make a new one.</p>'; sampleSoon(0); return; }
+    box.classList.toggle('empty', !cur);
+    sideAt = 0;
+    if (!cur) { editEl.innerHTML = '<p class="hint" style="padding:20px">Click New preset, or Import… presets from a file.</p>'; sampleSoon(0); return; }
     nameEl.innerHTML = `<input type="text" value="${esc(cur.Name)}" aria-label="Preset name">`;
     const input = nameEl.querySelector('input');
     input.addEventListener('change', () => { const v = input.value.trim(); if (v) cur.Name = M.uniqueName(draft, v, cur); input.value = cur.Name; drawList(); });
@@ -1047,34 +1056,70 @@ function openPresetManager(selectId) {
       { folded: false, tabs: { bar: tabsEl, key: 'sievphov-preset-tab', first: 'layout' } });
     sampleSoon(0);
   }
-  // Sample paper: 8 made-up numbered pages with the chosen preset's settings, drawn by the engine as they print
-  const sampleEl = box.querySelector('#pmSample'), sampleSum = box.querySelector('#pmSampleSum');
-  let sampleT = 0, sampleRun = 0, sampleDoc = null;
+  // Sample paper: 8 made-up numbered pages (upright or wide) with the chosen preset's settings, drawn by the engine as
+  // they print; one side at a time, as Sastra PDF's print screen: ‹ › go through the sides, − Fit + zoom
+  const q = s => box.querySelector(s), stage = q('#pmStage'), sampleSum = q('#pmSampleSum');
+  const ZOOMS = [1, 1.5, 2, 3];   // × the size that shows the whole sheet
+  let sampleT = 0, sampleRun = 0, sideAt = 0, zoomAt = 0, shown = null, sideCount = 0;
+  let wide = lsGet('sievphov-sample-wide') === '1';
+  const docs = {}, pics = new Map();   // sample PDFs by kind; drawn sides by settings + side + size
   function sampleSoon(ms = 300) { clearTimeout(sampleT); sampleT = setTimeout(drawSample, ms); }
   async function drawSample() {
     const run = ++sampleRun, gone = () => run !== sampleRun || !box.isConnected;
-    if (!cur) { sampleEl.innerHTML = ''; sampleSum.textContent = ''; return; }
-    box.querySelector('.psample').classList.add('busy');
+    q('.psample').querySelectorAll('[data-wide]').forEach(b => b.classList.toggle('on', +b.dataset.wide === +wide));
+    if (!cur) { stage.innerHTML = ''; sampleSum.textContent = ''; shown = null; sideCount = 0; navSample(); return; }
+    q('.psample').classList.add('busy');
     try {
-      sampleDoc = sampleDoc || await desk.samplePdf();
-      const item = { id: 'sample', path: sampleDoc.path, blank: false, password: null, pageCount: sampleDoc.pageCount, pageSizes: sampleDoc.pageSizes, settings: M.clone(cur.Settings) };
+      const doc = docs[+wide] ||= await desk.samplePdf(wide);
+      const settings = { ...M.clone(cur.Settings), Copies: 1 };
+      const item = { id: 'sample', path: doc.path, blank: false, password: null, pageCount: doc.pageCount, pageSizes: doc.pageSizes, settings };
       const [est] = await eng('estimate', { items: [estItem(item)] });
       if (gone()) return;
-      if (est.error) { sampleEl.innerHTML = `<p class="hint">${esc(est.error)}</p>`; sampleSum.textContent = ''; return; }
-      const sides = await Promise.all(Array.from({ length: est.sides }, (_, i) => eng('preview', { item, side: i, maxPx: 420 })));
+      if (est.error) { stage.innerHTML = `<p class="hint">${esc(est.error)}</p>`; sampleSum.textContent = ''; shown = null; sideCount = 0; navSample(); return; }
+      sideCount = est.sides; sideAt = Math.max(0, Math.min(sideAt, sideCount - 1));
+      sampleSum.textContent = `${doc.pageCount} pages → ${plural(est.sheets, 'sheet')}${M.isTwoSided(settings) ? ', both sides' : ''}`;
+      const px = sidePx(), key = `${wide}|${sideAt}|${px}|${JSON.stringify(settings)}`;
+      if (!pics.has(key)) { if (pics.size > 40) pics.clear(); pics.set(key, await eng('preview', { item, side: sideAt, maxPx: px })); }
       if (gone()) return;
-      const twoSided = sides[0]?.twoSided, sheets = twoSided ? new Set(sides.map(r => r.sheet)).size : sides.length;
-      sampleSum.textContent = `${sampleDoc.pageCount} pages → ${plural(sheets, 'sheet')}${twoSided ? ', both sides' : ''}`;
-      const img = r => `<div class="ps-side${r.widthIn > r.heightIn ? ' land' : ''}"><img alt="" src="${r.png ? 'data:image/png;base64,' + r.png : 'data:image/svg+xml;base64,' + r.svg}"></div>`;
-      const pages = r => r.slots.map(p => p ?? 'blank').join(' | ');
-      const groups = [];
-      for (const r of sides) { const g = twoSided && groups.length && groups[groups.length - 1][0].sheet === r.sheet ? groups[groups.length - 1] : null; if (g) g.push(r); else groups.push([r]); }
-      sampleEl.innerHTML = groups.map(g => `<figure class="ps-sheet"><div class="pv-pair">${g.map(img).join('')}</div><figcaption>Sheet ${g[0].sheet}${g.map(r => twoSided ? ` · ${r.isBack ? 'back' : 'front'} ${pages(r)}` : ` · ${pages(r)}`).join('')}</figcaption></figure>`).join('');
+      const r = pics.get(key);
+      shown = { r, sheets: est.sheets };
+      stage.innerHTML = `<div class="ps-side"><img alt="" src="${r.png ? 'data:image/png;base64,' + r.png : 'data:image/svg+xml;base64,' + r.svg}"></div>`;
+      fitSample(); navSample();
     } catch (e) {
-      if (!gone()) { sampleEl.innerHTML = `<p class="hint">The sample could not be drawn: ${esc(e.message)}</p>`; sampleSum.textContent = ''; }
-    } finally { if (run === sampleRun) box.querySelector('.psample')?.classList.remove('busy'); }
+      if (!gone()) { stage.innerHTML = `<p class="hint">The sample could not be drawn: ${esc(e.message)}</p>`; sampleSum.textContent = ''; shown = null; navSample(); }
+    } finally { if (run === sampleRun) q('.psample')?.classList.remove('busy'); }
   }
-  listEl2.addEventListener('click', e => { const li = e.target.closest('li[data-id]'); if (!li) return; cur = M.findPreset(draft, li.dataset.id); drawList(); drawEditor(); });
+  // pixels to ask the engine for: the side's long edge on screen, in steps so a resize does not draw again
+  const sidePx = () => { const need = Math.max(stage.clientWidth, stage.clientHeight) * ZOOMS[zoomAt] * Math.min(devicePixelRatio || 1, 2); return need <= 800 ? 800 : need <= 1400 ? 1400 : 2400; };
+  function fitSample() {
+    const el = stage.querySelector('.ps-side'); if (!el || !shown) return;
+    const cs = getComputedStyle(stage), aw = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), ah = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    const { widthIn: w, heightIn: h } = shown.r, f = Math.max(0.1, Math.min(aw / w, ah / h)) * ZOOMS[zoomAt];
+    el.style.width = Math.round(w * f) + 'px'; el.style.height = Math.round(h * f) + 'px';
+    stage.classList.toggle('zoomed', zoomAt > 0);
+  }
+  function navSample() {
+    const r = shown?.r;
+    q('#pmNum').textContent = r ? `Sheet ${r.sheet} of ${shown.sheets}${r.twoSided ? ` · ${r.isBack ? 'back' : 'front'}` : ''}` : '';
+    q('#pmPages').textContent = r ? `page${r.slots.length > 1 ? 's' : ''} ${r.slots.map(p => p ?? 'blank').join(' | ')}` : '';
+    q('#pmPrev').disabled = !r || sideAt <= 0; q('#pmNext').disabled = !r || sideAt >= sideCount - 1;
+    q('#pmOut').disabled = !r || zoomAt <= 0; q('#pmIn').disabled = !r || zoomAt >= ZOOMS.length - 1; q('#pmFit').disabled = !r || zoomAt === 0;
+    q('#pmFit').textContent = zoomAt ? Math.round(ZOOMS[zoomAt] * 100) + ' %' : 'Fit';
+  }
+  const turn = d => { const n = Math.max(0, Math.min(sideCount - 1, sideAt + d)); if (n !== sideAt) { sideAt = n; sampleSoon(0); } };
+  const zoomTo = z => { z = Math.max(0, Math.min(ZOOMS.length - 1, z)); if (z === zoomAt) return; zoomAt = z; fitSample(); navSample(); sampleSoon(0); };
+  q('#pmPrev').onclick = () => turn(-1); q('#pmNext').onclick = () => turn(1);
+  q('#pmOut').onclick = () => zoomTo(zoomAt - 1); q('#pmIn').onclick = () => zoomTo(zoomAt + 1); q('#pmFit').onclick = () => zoomTo(0);
+  q('.psample .seg').addEventListener('click', e => {
+    const b = e.target.closest('[data-wide]'); if (!b || +b.dataset.wide === +wide) return;
+    wide = b.dataset.wide === '1'; lsSet('sievphov-sample-wide', wide ? '1' : '0'); sideAt = 0; sampleSoon(0);
+  });
+  box.addEventListener('keydown', e => {   // ← → turn the sides, unless typing or on the tabs
+    if (e.defaultPrevented || !['ArrowLeft', 'ArrowRight'].includes(e.key) || e.target.closest('input, select, textarea, .ptabs, [contenteditable]')) return;
+    e.preventDefault(); turn(e.key === 'ArrowLeft' ? -1 : 1);
+  });
+  new ResizeObserver(fitSample).observe(stage);
+  pickEl.addEventListener('change', () => { cur = M.findPreset(draft, pickEl.value); drawList(); drawEditor(); });
   box.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
     const i = cur ? draft.Presets.indexOf(cur) : -1;
@@ -1363,11 +1408,7 @@ function openPreview(start) {
     const res = await eng('estimate', { items: list.map(estItem) }).catch(() => null);
     list.forEach((it, i) => sidesOf.set(it.id, res?.[i] ?? { sides: 0, sheets: 0, pagesPrinted: 0, error: 'Could not count the sheets' }));
   }
-  const guessLandscape = it => {
-    const s = it.settings, p = it.pageSizes?.[0] || [595, 842];
-    return s.Layout === 'Booklet' || s.Orientation === 'Landscape' ||
-      (s.Orientation !== 'Portrait' && (s.Layout === 'PagesPerSheet' ? s.Columns > s.Rows : p[0] > p[1]));
-  };
+  const guessLandscape = it => M.sheetLandscape(it.settings, it.pageSizes?.[0]);
   const factLine = it => {
     const s = it.settings, e = sidesOf.get(it.id) || {};
     const prints = e.error ? e.error : it.blank ? plural(e.sheets || 0, 'blank sheet') : `${plural(e.sheets || 0, 'sheet')} · ${plural(e.pagesPrinted || 0, 'page')}${s.Copies > 1 ? ` (${plural(s.Copies, 'copy', 'copies')})` : ''}`;

@@ -25,9 +25,9 @@ function pdf(pages, { big = false } = {}) {
   return Buffer.from(out, 'latin1');
 }
 
-/** The sample for Manage presets: 8 A4 pages numbered 1 … 8. → { pageSizes, data } */
-function sample() {
-  const pageSizes = Array(8).fill([595, 842]);
+/** The sample for Manage presets: 8 A4 pages numbered 1 … 8, upright or wide. → { pageCount, pageSizes, data } */
+function sample({ wide = false } = {}) {
+  const pageSizes = Array(8).fill(wide ? [842, 595] : [595, 842]);
   return { pageCount: pageSizes.length, pageSizes, data: pdf(pageSizes, { big: true }) };
 }
 

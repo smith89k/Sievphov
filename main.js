@@ -235,14 +235,14 @@ ipcMain.handle('expand-paths', async (_e, paths, sub) => {
   return { pdfs: out, jobs };
 });
 ipcMain.handle('file-exists', async (_e, p) => fs.access(String(p)).then(() => true, () => false));
-// the sample paper in Manage presets: 8 numbered pages, written once per run to the temp folder
-let samplePath = null;
-ipcMain.handle('sample-pdf', async () => {
-  const s = samplePdf.sample();
-  if (!samplePath) { samplePath = path.join(app.getPath('temp'), `sievphov-sample-${process.pid}.pdf`); await fs.writeFile(samplePath, s.data); }
-  return { path: samplePath, pageCount: s.pageCount, pageSizes: s.pageSizes };
+// the sample paper in Manage presets: 8 numbered pages, upright or wide, each written once per run to the temp folder
+const samplePaths = {};
+ipcMain.handle('sample-pdf', async (_e, wide) => {
+  const kind = wide ? 'wide' : 'upright', s = samplePdf.sample({ wide: !!wide });
+  if (!samplePaths[kind]) { samplePaths[kind] = path.join(app.getPath('temp'), `sievphov-sample-${kind}-${process.pid}.pdf`); await fs.writeFile(samplePaths[kind], s.data); }
+  return { path: samplePaths[kind], pageCount: s.pageCount, pageSizes: s.pageSizes };
 });
-app.on('will-quit', () => { if (samplePath) try { fsSync.unlinkSync(samplePath); } catch {} });
+app.on('will-quit', () => { for (const p of Object.values(samplePaths)) try { fsSync.unlinkSync(p); } catch {} });
 
 /* ---------- jobs (.svpv) and preset files (.svpreset) ---------- */
 ipcMain.handle('open-job-dialog', async () => {

@@ -165,24 +165,36 @@ app.whenReady().then(async () => {
     check((await rowText(3)).includes('Both sides (long edge)') && (await rowText(3)).includes('2-sided'), 'Apply to selected gives the chosen preset to the selected file');
 
     // manage presets
-    await js(`localStorage.removeItem('sievphov-preset-tab')`);
+    await js(`localStorage.removeItem('sievphov-preset-tab'); localStorage.removeItem('sievphov-sample-wide')`);
     await click('#pManage');
     await waitFor(() => js(`!!document.querySelector('.modal.presets')`), 'presets box');
     // the settings in tabs, one section at a time, opening on Layout
     const shownSecs = () => js(`[...document.querySelectorAll('#pmEdit > .tsec')].filter(s => !s.hidden).map(s => s.dataset.sec).join()`);
     check(await js(`document.querySelector('#pmTabs [aria-selected="true"]')?.dataset.sec`) === 'layout', 'Manage presets opens on the Layout tab');
     check(await shownSecs() === 'layout', 'only the Layout section shows');
-    // the sample paper: 8 numbered pages printed with the chosen preset
-    await js(`document.querySelectorAll('#pmList li')[2].click()`);   // Book – booklet 2-sided
+    // the sample paper, as Sastra PDF's print screen: one side at a time, ‹ › to turn
+    const sampleText = () => js(`[document.getElementById('pmNum').textContent, document.getElementById('pmPages').textContent].join(' / ')`);
+    const pickField = (label, value) => js(`(() => { const s = [...document.querySelectorAll('#pmEdit .field')].find(f => f.querySelector('.flabel span')?.textContent === ${JSON.stringify(label)}).querySelector('select'); s.value = ${JSON.stringify(value)}; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await js(`(() => { const s = document.getElementById('pmPick'); s.value = s.options[2].value; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);   // Book – booklet 2-sided
     await waitFor(() => js(`document.getElementById('pmSampleSum').textContent === '8 pages → 2 sheets, both sides'`), 'booklet sample');
-    check(await js(`document.querySelectorAll('#pmSample .ps-sheet').length === 2 && document.querySelectorAll('#pmSample .ps-side img').length === 4`), 'booklet sample: 2 sheets, front and back');
-    check((await js(`document.querySelector('#pmSample figcaption').textContent`)) === 'Sheet 1 · front 8 | 1 · back 2 | 7', 'booklet sample: sheet 1 has pages 8 | 1 and 2 | 7');
+    await waitFor(async () => (await sampleText()) === 'Sheet 1 of 2 · front / pages 8 | 1', 'booklet sample: sheet 1 front has pages 8 | 1');
+    check(await js(`document.querySelectorAll('#pmStage .ps-side img').length === 1 && document.getElementById('pmPrev').disabled`), 'the sample shows one side; ‹ is off on the first');
     await shot('06-manage-presets');
-    await js(`(() => { const s = [...document.querySelectorAll('#pmEdit .field')].find(f => f.querySelector('.flabel span')?.textContent === 'Layout').querySelector('select'); s.value = 'PagesPerSheet'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
-    await js(`(() => { const s = [...document.querySelectorAll('#pmEdit .field')].find(f => f.querySelector('.flabel span')?.textContent === 'Pages per sheet').querySelector('select'); s.value = '2x2'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await click('#pmNext');
+    await waitFor(async () => (await sampleText()) === 'Sheet 1 of 2 · back / pages 2 | 7', '› turns to the back of sheet 1');
+    await click('#pmIn');
+    check(await js(`document.getElementById('pmFit').textContent === '150 %' && document.getElementById('pmStage').classList.contains('zoomed')`), '+ zooms in');
+    await click('#pmFit');
+    await pickField('Layout', 'PagesPerSheet'); await pickField('Pages per sheet', '2x2');
     await waitFor(() => js(`document.getElementById('pmSampleSum').textContent === '8 pages → 1 sheet, both sides'`), '4 per sheet sample');
-    check((await js(`document.querySelector('#pmSample figcaption').textContent`)) === 'Sheet 1 · front 1 | 2 | 3 | 4 · back 5 | 6 | 7 | 8', 'a change redraws the sample: 4 per sheet');
+    await waitFor(async () => (await sampleText()) === 'Sheet 1 of 1 · back / pages 5 | 6 | 7 | 8', 'a change redraws the sample and keeps the side: 4 per sheet');
     await shot('06a-manage-presets-4-per-sheet');
+    // wide pages, 2 per sheet: stacked on an upright sheet, as Sastra PDF
+    await pickField('Pages per sheet', '2x1');
+    await click('.psample [data-wide="1"]');
+    await waitFor(async () => (await sampleText()) === 'Sheet 1 of 2 · front / pages 1 | 2', 'wide sample, 2 per sheet');
+    check(await js(`(() => { const e = document.querySelector('#pmStage .ps-side'); return e.offsetHeight > e.offsetWidth; })()`), '2 wide pages per sheet print on an upright sheet');
+    await click('.psample [data-wide="0"]');
     await click('#pmTabs [data-sec="paper"]');
     check(await shownSecs() === 'paper', 'the Paper & tray tab shows only that section');
     await click('#pmTabs [data-sec="watermark"]');

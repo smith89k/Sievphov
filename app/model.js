@@ -70,6 +70,19 @@ function set(s, p, v) {
 
 // a booklet prints both sides unless only its fronts or only its backs are printed
 const isTwoSided = s => s.Layout === 'Booklet' ? s.BookletSides === 'Both' : s.Sides !== 'OneSide';
+// Pages per sheet as in Sastra PDF (LayoutMath.Grid / SheetIsLandscape, KEEP IN SYNC): the grid turns with the sheet,
+// upright = the smaller of Columns / Rows across; Auto = the way round that shows the first page (points) larger.
+const nUpGrid = (s, land) => { const a = Math.max(1, Math.min(s.Columns, s.Rows)), b = Math.max(1, Math.max(s.Columns, s.Rows)); return land ? [b, a] : [a, b]; };
+function sheetLandscape(s, page = [595, 842], sheet = [595.3, 841.9]) {
+  if (s.Layout === 'Booklet' || s.Orientation === 'Landscape') return true;
+  if (s.Orientation === 'Portrait') return false;
+  if (s.Layout !== 'PagesPerSheet') return page[0] > page[1];
+  const gap = (s.GapMm || 0) * 72 / 25.4, fit = land => {
+    const [c, r] = nUpGrid(s, land), w = land ? sheet[1] : sheet[0], h = land ? sheet[0] : sheet[1];
+    return Math.min((w - gap * (c - 1)) / c / page[0], (h - gap * (r - 1)) / r / page[1]);
+  };
+  return fit(true) > fit(false) + 1e-9;
+}
 
 /* ---------------------------------------------------------------- presets */
 let idCounter = 0;
@@ -268,7 +281,7 @@ const rememberSwap = (swaps, printer, from, to) =>
 const khmerDigits = s => String(s).replace(/[0-9]/g, d => String.fromCharCode(0x17E0 + +d));
 
 const M = {
-  DEFAULTS, PER_SHEET, defaults, normalize, clone, equal, get, set, isTwoSided, newId,
+  DEFAULTS, PER_SHEET, defaults, normalize, clone, equal, get, set, isTwoSided, nUpGrid, sheetLandscape, newId,
   starterLibrary, readLibrary, findPreset, findPresetByName, defaultPreset, uniqueName, importInto,
   applyPreset, markModified, setField, setAll, resetToPreset, libraryChanged, presetLabel, shared, differsFromPreset,
   toJob, fromJob, jobRepeat, reportCsv, byPrinter, missingTrays, rememberedSwap, rememberSwap, khmerDigits
