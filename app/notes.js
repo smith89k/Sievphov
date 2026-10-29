@@ -9,6 +9,12 @@ const KINDS = Object.freeze(['new', 'improved', 'fixed', 'removed']);   // the w
 const N = (version, date, notes) => Object.freeze({ version, date, notes: Object.freeze(notes.map(([kind, text]) => Object.freeze({ kind, text }))) });
 
 const NOTES = Object.freeze([
+  N('2.1.0', '2026-10-29', [
+    ['new', 'Swap trays: when a file prints on a printer that does not have its paper tray (for example a preset made for another printer), Print first asks which of that printer\'s trays to use. Tick Remember for next time and it is done by itself afterwards; the print question then says which trays were swapped, and Change trays… picks again.'],
+    ['new', 'Booklets can print the front sides only or the back sides only, for printers that cannot print on both sides: print the fronts, put the stack back in the tray, then print the backs.'],
+    ['improved', 'Layout reads like Sastra PDF: One page per sheet, Multiple pages per sheet or Booklet, with only the chosen layout\'s settings in a box under it. Multiple pages per sheet: pick 2, 4, 6, 9 or 16 and the page order (horizontal, vertical, or reversed).'],
+    ['improved', 'Reverse order on a booklet now prints the last sheet first, as in Sastra PDF (before, it swapped the left and right pages).']
+  ]),
   N('2.0.0', '2026-10-20', [
     ['new', 'A new look, laid out like Bohpum: the title row with the File, Edit, Presets, View and Help menus and the job\'s name, a toolbar under it, the files in the middle and their settings on the right. The same fonts, boxes and light and dark theme as Bohpum and Sastra PDF (the button at the top right, or View › Theme).'],
     ['new', 'Presets sit at the top of the panel on the right: pick one, then Apply to selected. Save as preset, Update preset and Manage presets are next to it.'],

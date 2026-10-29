@@ -66,7 +66,7 @@ const state = {
   sel: new Set(),         // ids of selected items
   anchor: null,           // Shift+click range start
   lib: M.starterLibrary(),
-  settings: { IncludeSubfolders: true, AfterPrint: 'Nothing', AfterPrintFolder: '', Passwords: [] },
+  settings: { IncludeSubfolders: true, AfterPrint: 'Nothing', AfterPrintFolder: '', Passwords: [], TraySwaps: [] },   // TraySwaps: [{ Printer, From, To }]
   printers: [],           // [{ name, isDefault }]
   caps: new Map(),        // printer name → { paperSizes, trays, canDuplex, supportsColor, exists }
   est: new Map(),         // item id → estimate from the engine
@@ -152,9 +152,10 @@ function busy(text) {
 
 /* ---------- describing settings in words ---------- */
 const SIDES = { OneSide: '1-sided', LongEdge: '2-sided (long edge)', ShortEdge: '2-sided (short edge)' };
-const sidesText = s => s.Layout === 'Booklet' ? 'Booklet' : s.Layout === 'PagesPerSheet' ? `${s.Columns * s.Rows} per sheet · ${SIDES[s.Sides]}` : SIDES[s.Sides];
+const BOOKLET_ONLY = { Both: '', Front: ' · fronts only', Back: ' · backs only' };
+const sidesText = s => s.Layout === 'Booklet' ? 'Booklet' + BOOKLET_ONLY[s.BookletSides] : s.Layout === 'PagesPerSheet' ? `${s.Columns * s.Rows} per sheet · ${SIDES[s.Sides]}` : SIDES[s.Sides];
 const trayText = s => s.Tray || 'As in printer';
-const bindingText = s => `Booklet, bound on the ${s.Binding === 'Right' ? 'right' : 'left'}`;
+const bindingText = s => `Booklet, bound on the ${s.Binding === 'Right' ? 'right' : 'left'}${BOOKLET_ONLY[s.BookletSides]}`;
 function describe(s) {
   const bits = [s.PrinterName || 'Default printer'];
   if (s.Tray) bits.push(s.Tray);
@@ -592,35 +593,38 @@ const SECTIONS = [
   { sec: 'paper', title: 'Paper & tray', icon: 'tray', fields: [
     { path: 'Tray', kind: 'big', label: 'Paper tray', opts: (ctx, s) => trayOpts(s) },
     { path: 'PaperSize', kind: 'big', label: 'Paper', opts: (ctx, s) => paperOpts(s) },
-    { path: 'Sides', kind: 'big', label: 'Sides', opts: (ctx, s) => [
+    { path: 'Sides', kind: 'big', label: 'Sides', show: s => s.Layout !== 'Booklet', opts: (ctx, s) => [
       { v: 'OneSide', t: 'Print one side', s: 'Only the front of each sheet', ic: 'oneside' },
       { v: 'LongEdge', t: 'Both sides, flip on long edge', s: 'Turn pages like a book', ic: 'longedge' },
       { v: 'ShortEdge', t: 'Both sides, flip on short edge', s: 'Turn pages like a notepad · booklets', ic: 'shortedge' }], note: s => sidesNote(s) },
     { path: 'Orientation', kind: 'big', label: 'Orientation', show: s => s.Layout !== 'Booklet', opts: () => [
       { v: 'Auto', t: 'Auto', s: 'Follow each page, turn pages to fit', ic: 'auto' },
       { v: 'Portrait', t: 'Portrait', s: 'Tall sheet', ic: 'portrait' }, { v: 'Landscape', t: 'Landscape', s: 'Wide sheet', ic: 'landscape' }] },
-    { path: 'Fit', kind: 'select', label: 'Size on the paper', opts: () => [
-      { v: 'Fit', t: 'Fit to paper' }, { v: 'ShrinkOnly', t: 'Shrink large pages only' }, { v: 'ActualSize', t: 'Actual size' }, { v: 'Fill', t: 'Fill paper (may cut edges)' }, { v: 'Zoom', t: 'Zoom %' }] },
-    { path: 'ZoomPercent', kind: 'number', label: 'Zoom %', min: 10, max: 400, show: s => s.Fit === 'Zoom' },
-    { path: 'Alignment', kind: 'select', label: 'Position on the paper', show: s => s.Layout !== 'Booklet', opts: () => [
-      ['Center', 'Center'], ['Top', 'Top'], ['Bottom', 'Bottom'], ['Left', 'Left'], ['Right', 'Right'], ['TopLeft', 'Top left'], ['TopRight', 'Top right'], ['BottomLeft', 'Bottom left'], ['BottomRight', 'Bottom right']].map(([v, t]) => ({ v, t })) },
     { path: 'Grayscale', kind: 'seg', label: 'Color', parse: bool, opts: () => [{ v: 'false', t: 'Color' }, { v: 'true', t: 'Grayscale' }] },
     { path: 'Dpi', kind: 'seg', label: 'Quality', parse: num, opts: () => [{ v: '150', t: 'Draft 150' }, { v: '300', t: 'Normal 300' }, { v: '600', t: 'High 600' }] }
   ]},
   { sec: 'layout', title: 'Layout', icon: 'booklet', fields: [
     { path: 'Layout', kind: 'big', label: 'Layout', opts: (ctx, s) => [
-      { v: 'Normal', t: 'Normal', s: 'One page on each side of the paper', ic: 'normal' },
-      { v: 'PagesPerSheet', t: 'Several pages per sheet', s: s.Layout === 'PagesPerSheet' ? `${s.Columns * s.Rows} per sheet (${s.Columns} × ${s.Rows})` : '2, 4 or more pages on one side', ic: 'nup' },
-      { v: 'Booklet', t: 'Booklet', s: 'Two pages a side in folding order, then fold', ic: 'booklet' }] },
-    { group: 'nup', show: s => s.Layout === 'PagesPerSheet', fields: [
-      { row: [{ path: 'Columns', kind: 'number', label: 'Across', min: 1, max: 10 }, { path: 'Rows', kind: 'number', label: 'Down', min: 1, max: 10 }] },
-      { path: 'Order', kind: 'seg', label: 'Order', opts: () => [{ v: 'AcrossThenDown', t: 'Across, then down' }, { v: 'DownThenAcross', t: 'Down, then across' }] },
-      { row: [{ path: 'GapMm', kind: 'number', label: 'Gap (mm)', min: 0, max: 100, step: 0.5 }, { path: 'Borders', kind: 'check', text: 'Line around pages' }] }
-    ]},
-    { group: 'booklet', show: s => s.Layout === 'Booklet', fields: [
-      { path: 'Binding', kind: 'seg', label: 'Binding', opts: () => [{ v: 'Left', t: 'Left (Khmer, English)' }, { v: 'Right', t: 'Right' }] },
-      { path: 'BookletGapMm', kind: 'number', label: 'Gap at the fold (mm)', min: 0, max: 100, step: 0.5 },
-      { hint: 'Sheet 1 has pages 8 | 1 in front and 2 | 7 behind, and so on. Print both sides, flipping on the short edge, then fold the stack in the middle.' }
+      { v: 'Normal', t: 'One page per sheet', s: 'Fit, actual size or your own zoom', ic: 'normal' },
+      { v: 'PagesPerSheet', t: 'Multiple pages per sheet', s: s.Layout === 'PagesPerSheet' ? `${s.Columns * s.Rows} on each side` : '2, 4, 6, 9 or 16 on each side', ic: 'nup' },
+      { v: 'Booklet', t: 'Booklet', s: 'Folded sheets, pages in reading order', ic: 'booklet' }] },
+    // the chosen layout's own settings, boxed together under it (as in Sastra PDF)
+    { group: 'lay', show: yes, fields: [
+      { row: [{ path: 'PerSheet', kind: 'select', label: 'Pages per sheet', opts: (ctx, s) => perSheetOpts(s) },
+        { path: 'Order', kind: 'select', label: 'Page order', opts: () => [
+          { v: 'AcrossThenDown', t: 'Horizontal' }, { v: 'AcrossThenDownReversed', t: 'Horizontal reversed' },
+          { v: 'DownThenAcross', t: 'Vertical' }, { v: 'DownThenAcrossReversed', t: 'Vertical reversed' }] }], show: s => s.Layout === 'PagesPerSheet' },
+      { row: [{ path: 'BookletSides', kind: 'select', label: 'Print', opts: () => [{ v: 'Both', t: 'Both sides' }, { v: 'Front', t: 'Front side only' }, { v: 'Back', t: 'Back side only' }] },
+        { path: 'Binding', kind: 'select', label: 'Binding', opts: () => [{ v: 'Left', t: 'Left' }, { v: 'Right', t: 'Right' }] }], show: s => s.Layout === 'Booklet' },
+      { line: s => bookletNote(s), show: s => s.Layout === 'Booklet' },
+      { path: 'Fit', kind: 'select', label: 'Size on the paper', opts: () => [
+        { v: 'Fit', t: 'Fit to paper' }, { v: 'ShrinkOnly', t: 'Shrink large pages only' }, { v: 'ActualSize', t: 'Actual size' }, { v: 'Fill', t: 'Fill paper (may cut edges)' }, { v: 'Zoom', t: 'Zoom %' }] },
+      { path: 'ZoomPercent', kind: 'number', label: 'Zoom %', min: 10, max: 400, show: s => s.Fit === 'Zoom' },
+      { path: 'Alignment', kind: 'select', label: 'Position on the paper', show: s => s.Layout !== 'Booklet', opts: () => [
+        ['Center', 'Center'], ['Top', 'Top'], ['Bottom', 'Bottom'], ['Left', 'Left'], ['Right', 'Right'], ['TopLeft', 'Top left'], ['TopRight', 'Top right'], ['BottomLeft', 'Bottom left'], ['BottomRight', 'Bottom right']].map(([v, t]) => ({ v, t })) },
+      { row: [{ path: 'GapMm', kind: 'number', label: 'Gap (mm)', min: 0, max: 100, step: 0.5 }, { path: 'Borders', kind: 'check', text: 'Print page border' }], show: s => s.Layout === 'PagesPerSheet' },
+      { path: 'BookletGapMm', kind: 'number', label: 'Gap at the fold (mm)', min: 0, max: 100, step: 0.5, show: s => s.Layout === 'Booklet' },
+      { hint: 'Fold the printed stack in half to make the booklet. If the printer can\'t print on both sides, print Front side only, put the stack back in the tray, then print Back side only. Reverse order prints the last sheet first.', show: s => s.Layout === 'Booklet' }
     ]}
   ]},
   { sec: 'numbers', title: 'Page numbers', icon: 'hash', on: 'PageNumbers.Enabled', fields: [
@@ -679,8 +683,21 @@ function paperOpts(s) {
 function sidesNote(s) {
   const caps = state.caps.get(s.PrinterName || defaultPrinter());
   if (M.isTwoSided(s) && caps && caps.exists && !caps.canDuplex) return 'This printer cannot print on both sides: the file will stop with an error.';
-  if (s.Layout === 'Booklet' && s.Sides === 'OneSide') return 'Booklets print on both sides.';
   return '';
+}
+function bookletNote(s) {
+  const caps = state.caps.get(s.PrinterName || defaultPrinter());
+  if (s.BookletSides === 'Both' && caps && caps.exists && !caps.canDuplex) return 'This printer cannot print on both sides. Print Front side only, put the stack back in the tray, then print Back side only.';
+  if (s.BookletSides === 'Front') return 'Then put the printed stack back in the tray and print Back side only.';
+  if (s.BookletSides === 'Back') return 'Put the stack printed with Front side only back in the tray first.';
+  return '';
+}
+/** Pages per sheet as in Sastra PDF: 2, 4, 6, 9, 16; a grid from an older preset (3 × 1 …) stays as it is. */
+function perSheetOpts(s) {
+  const opts = M.PER_SHEET.map(([n, v]) => ({ v, t: String(n) }));
+  const cur = M.get(s, 'PerSheet');
+  if (!opts.some(o => o.v === cur)) opts.push({ v: cur, t: `${s.Columns} × ${s.Rows} (custom)` });
+  return opts;
 }
 
 /**
@@ -708,8 +725,14 @@ function buildEditor(root, ctx, { sections = SECTIONS, folded = true } = {}) {
   }
   function addFields(parent, fields) {
     for (const f of fields) {
-      if (f.hint) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = f.hint; parent.appendChild(p); continue; }
-      if (f.row) { const r = document.createElement('div'); r.className = 'row2'; parent.appendChild(r); addFields(r, f.row); continue; }
+      const shown = el => { if (f.show) bound.push({ sync: list => { el.hidden = !f.show(list[0]); } }); };
+      if (f.hint) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = f.hint; parent.appendChild(p); shown(p); continue; }
+      if (f.line) {   // a line of its own that depends on the settings (and the printer)
+        const p = document.createElement('p'); p.className = 'hint'; parent.appendChild(p);
+        bound.push({ sync: list => { const n = f.show && !f.show(list[0]) ? '' : f.line(list[0]); p.textContent = n; p.hidden = !n; } });
+        continue;
+      }
+      if (f.row) { const r = document.createElement('div'); r.className = 'row2'; parent.appendChild(r); shown(r); addFields(r, f.row); continue; }
       if (f.group) {
         const g = document.createElement('div'); g.className = 'subbox'; parent.appendChild(g);
         bound.push({ sync: list => { g.hidden = !f.show(list[0]); } });
@@ -1075,11 +1098,70 @@ async function estimateCmd() {
   const { box, close } = openBox('wide', `<h2>Estimate</h2><p class="detail">Paper needed for the ${plural(list.length, 'ticked file')}, per printer. Two-sided sheets count once.</p>${html}<div class="acts"><button class="btn primary" data-close>Close</button></div>`);
   box.querySelector('[data-close]').onclick = close; box.querySelector('[data-close]').focus();
 }
+/* ---------- Swap trays: a file's tray that is not on the printer it prints on ---------- */
+/** A printer's paper sizes and trays, waiting for the engine when they are not known yet. */
+async function capsAsync(name) {
+  const key = name || defaultPrinter();
+  if (!key) return null;
+  if (!state.caps.has(key)) { capsFor(key); await capsWaiting.get(key); }
+  return state.caps.get(key) || null;
+}
+/**
+ * Before printing: files whose tray is not on their printer get one of that printer's trays. Remembered answers are
+ * used without asking (unless `ask`), the rest are asked in the Swap trays box. → the swaps made
+ * [{ printer, tray, trays, items, to, asked }], or null when the box was cancelled (nothing changes then).
+ */
+async function swapTrays(list, { ask = false } = {}) {
+  await Promise.all([...new Set(list.map(it => printerOf(it.settings)))].filter(Boolean).map(capsAsync));
+  const groups = M.missingTrays(list, n => state.caps.get(n) || null, defaultPrinter());
+  if (!groups.length) return [];
+  for (const g of groups) { g.to = M.rememberedSwap(state.settings.TraySwaps, g.printer, g.tray, g.trays); g.asked = false; }
+  const toAsk = ask ? groups : groups.filter(g => g.to == null);
+  if (toAsk.length) {
+    const answer = await askTrays(toAsk);
+    if (!answer) return null;
+    toAsk.forEach((g, i) => { g.to = answer.to[i]; g.asked = true; });
+    if (answer.remember) {
+      for (const g of toAsk) state.settings.TraySwaps = M.rememberSwap(state.settings.TraySwaps, g.printer, g.tray, g.to);
+      saveSettings();
+    }
+  }
+  setTrays(groups, 'to');
+  return groups;
+}
+// gives each group's files its new tray ('to') or puts their own one back ('tray')
+function setTrays(groups, which) {
+  for (const g of groups) for (const it of g.items) { it.settings.Tray = g[which]; M.markModified(it, state.lib); }
+  markDirty(); refresh({ estimate: false });
+}
+/** The Swap trays box: one row per printer and missing tray. → { to: [tray per group], remember } or null. */
+function askTrays(groups) {
+  return new Promise(res => {
+    const row = (g, i) => `<tr><td>${esc(g.printer)}</td><td>${esc(g.tray)}</td>
+      <td><select data-g="${i}" aria-label="Tray to use on ${esc(g.printer)} instead of ${esc(g.tray)}">${['', ...g.trays].map(t => `<option value="${esc(t)}"${t === (g.to ?? '') ? ' selected' : ''}>${esc(t || 'As in printer')}</option>`).join('')}</select></td>
+      <td class="n" title="${esc(g.items.map(it => it.name).join('\n'))}">${g.items.length}</td></tr>`;
+    const one = groups.length === 1 && groups[0].items.length === 1;
+    const { box, close } = openBox('wide', `<h2>Swap trays</h2><p class="detail">${one ? 'This file prints' : 'These files print'} on a printer that does not have ${one ? 'its' : 'their'} tray. Pick the tray to use instead.</p>
+      <table class="est swap"><thead><tr><th>Printer</th><th>Their tray</th><th>Use this tray</th><th class="n">Files</th></tr></thead><tbody>${groups.map(row).join('')}</tbody></table>
+      <label class="chk"><input type="checkbox" id="swRemember" checked>Remember for next time</label>
+      <div class="acts"><button class="btn outline" data-r="0">Cancel</button><button class="btn primary" data-r="1">Continue</button></div>`,
+      { onCancel: () => { close(); res(null); } });
+    box.addEventListener('click', e => {
+      const b = e.target.closest('[data-r]'); if (!b) return;
+      const to = [...box.querySelectorAll('select[data-g]')].map(s => s.value), remember = box.querySelector('#swRemember').checked;
+      close(); res(b.dataset.r === '1' ? { to, remember } : null);
+    });
+    box.querySelector('select[data-g]').focus();
+  });
+}
 async function printCmd() {
   if (state.printing) return;
   const list = ticked();
   if (!list.length) { toast('No files are ticked. Tick the files you want to print.'); return; }
   await runEstimate();
+  // a tray the printer does not have: ask which of its trays to use (remembered answers are used by themselves)
+  let swaps = await swapTrays(list);
+  if (!swaps) return;
   // only a question: what prints where; Repeat is next to the Print button, After printing in File › After Printing…
   const est = list.map(it => state.est.get(it.id) || {}), n = state.repeat;
   const byPrinter = M.byPrinter(list, est, defaultPrinter());
@@ -1089,9 +1171,23 @@ async function printCmd() {
   const after = state.settings.AfterPrint !== 'Nothing' && state.settings.AfterPrintFolder
     ? ` Afterwards the PDFs are ${state.settings.AfterPrint === 'MoveTo' ? 'moved' : 'copied'} to ${state.settings.AfterPrintFolder}.` : '';
   const detail = `About ${plural(sheets, 'sheet')} ${where}.${n > 1 ? ` The whole list ${n} times, one set after another.` : ''}${after}`;
-  const go = (await askChoice(`Print ${plural(list.length, 'file')}${n > 1 ? `, ${n} times` : ''}?`, [['Cancel', 'outline'], ['Print', 'primary']], {
-    detail, html: problems.length ? `<p class="detail">These files will stop with an error:</p><ul class="problems">${problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''
-  })) === 1;
+  const problemsHtml = problems.length ? `<p class="detail">These files will stop with an error:</p><ul class="problems">${problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : '';
+  let go = false;
+  for (;;) {
+    const auto = swaps.filter(g => !g.asked);   // remembered swaps, made without asking: shown, and can be changed
+    const swapHtml = auto.length ? `<p class="detail">Trays swapped as you chose before:</p><ul class="names">${auto.map(g => `<li>${esc(`${g.tray} → ${g.to || 'As in printer'} on ${g.printer} (${plural(g.items.length, 'file')})`)}</li>`).join('')}</ul>` : '';
+    const buttons = [['Cancel', 'outline'], ...(auto.length ? [['Change trays…', 'outline']] : []), ['Print', 'primary']];
+    const r = await askChoice(`Print ${plural(list.length, 'file')}${n > 1 ? `, ${n} times` : ''}?`, buttons, { detail, html: swapHtml + problemsHtml });
+    if (auto.length && r === 1) {
+      setTrays(auto, 'tray');   // their own trays back, so the box asks about them again
+      const again = await swapTrays(auto.flatMap(g => g.items), { ask: true });
+      if (!again) setTrays(auto, 'to');   // cancelled: keep the remembered ones
+      else swaps = [...swaps.filter(g => !auto.includes(g)), ...again];
+      continue;
+    }
+    go = r === buttons.length - 1;
+    break;
+  }
   if (!go) return;
   for (const it of list) { it.status = 'wait'; it.message = ''; }
   state.printing = { paused: false, ids: new Set(list.map(it => it.id)), fraction: 0, text: 'Starting…' };
@@ -1636,6 +1732,7 @@ async function start() {
   if (read) state.lib = read; else { state.lib = M.starterLibrary(); await savePresets(); }
   if (settings.data && typeof settings.data === 'object') Object.assign(state.settings, settings.data);
   if (!Array.isArray(state.settings.Passwords)) state.settings.Passwords = [];
+  if (!Array.isArray(state.settings.TraySwaps)) state.settings.TraySwaps = [];
   await loadPrinters();
   updateTitle(); renderRows(); buildPanel();
   const paths = await desk.initialPaths();

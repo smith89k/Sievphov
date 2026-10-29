@@ -55,6 +55,12 @@ app.whenReady().then(async () => {
     const click = sel => js(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return false; e.click(); return true; })()`);
     const pickRow = (i, mods = {}) => js(`(() => { const r = document.querySelectorAll('.row')[${i}]; r.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ctrlKey: ${!!mods.ctrl}, shiftKey: ${!!mods.shift} })); r.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 })); })()`);
     const rowText = i => js(`document.querySelectorAll('.row')[${i}]?.innerText || ''`);
+    // a dropdown in the settings panel, found by its label (only shown ones) → false when it or the value is missing
+    const setSel = (label, value) => js(`(() => {
+      const f = [...document.querySelectorAll('#settingsBox .field')].find(f => !f.closest('[hidden]') && f.querySelector('.flabel span')?.textContent === ${JSON.stringify(label)});
+      const s = f?.querySelector('select'); if (!s || ![...s.options].some(o => o.value === ${JSON.stringify(value)})) return false;
+      s.value = ${JSON.stringify(value)}; s.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+    const shownLabels = () => js(`[...document.querySelectorAll('#settingsBox .tsec[data-sec="layout"] .field')].filter(f => !f.closest('[hidden]')).map(f => f.querySelector('.flabel span')?.textContent || f.innerText.trim()).join('|')`);
 
     await waitFor(() => js(`document.documentElement.dataset.ready === '1'`), 'app ready');
     check(await js(`document.documentElement.dataset.notes`) === 'shown', "What's new opens by itself on the first start");
@@ -106,11 +112,11 @@ app.whenReady().then(async () => {
     await js(`(() => { const b = [...document.querySelectorAll('#settingsBox .seg button')].find(b => b.textContent === '១ ២ ៣'); b.click(); })()`);
     await js(`document.querySelector('#settingsBox .tsec[data-sec="numbers"]').scrollIntoView()`);
     check(await js(`(() => { const r = [...document.querySelectorAll('#settingsBox .row2')].find(r => r.querySelector('.chkf') && r.querySelector('input[type=number]'));
-      if (!r) return false; const sec = r.closest('.tsec'), box = r.closest('.subbox'), wasF = sec.classList.contains('folded'), wasH = box?.hidden;
-      sec.classList.remove('folded'); if (box) box.hidden = false; r.scrollIntoView();
+      if (!r) return false; const sec = r.closest('.tsec'), box = r.closest('.subbox'), wasF = sec.classList.contains('folded'), wasH = box?.hidden, wasR = r.hidden;
+      sec.classList.remove('folded'); if (box) box.hidden = false; r.hidden = false; r.scrollIntoView();
       const a = r.querySelector('input[type=number]').getBoundingClientRect(), b = r.querySelector('.chkf input').getBoundingClientRect();
       const ok = a.height > 0 && Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) <= 2;
-      sec.classList.toggle('folded', wasF); if (box) box.hidden = wasH; return ok; })()`), 'a tick box next to a text box lines up with the box');
+      sec.classList.toggle('folded', wasF); if (box) box.hidden = wasH; r.hidden = wasR; return ok; })()`), 'a tick box next to a text box lines up with the box');
     await shot('04-page-numbers');
     await js(`document.getElementById('toolsScroll').scrollTop = 0`);
 
@@ -170,6 +176,32 @@ app.whenReady().then(async () => {
     await shot('07-dark');
     await click('#bTheme');   // back to system
 
+    // Layout as in Sastra PDF: the chosen layout's own settings in the box under it
+    await pickRow(0); await sleep(250);
+    await js(`document.querySelector('#settingsBox .tsec[data-sec="layout"]').scrollIntoView()`);
+    let labels = await shownLabels();
+    check(labels.includes('Print|Binding') && labels.includes('Size on the paper') && !labels.includes('Pages per sheet'), 'Booklet box: Print, Binding, Size on the paper');
+    check(await js(`!![...document.querySelectorAll('#settingsBox .field')].find(f => f.querySelector('.flabel span')?.textContent === 'Sides')?.hidden`), 'a booklet hides Sides');
+    check(await setSel('Print', 'Front'), 'Booklet: Front side only can be picked');
+    await sleep(250);
+    check((await rowText(0)).includes('Booklet · fronts only'), 'Sides column says fronts only');
+    check((await js(`document.querySelector('#settingsBox .tsec[data-sec="layout"]').innerText`)).includes('print Back side only'), 'Front only says what to do next');
+    await shot('03a-layout-booklet-front');
+    await setSel('Print', 'Both'); await sleep(200);
+    await pickRow(2); await sleep(250);
+    check((await shownLabels()).includes('Size on the paper|') && !(await shownLabels()).includes('Pages per sheet'), 'One page per sheet box: Size on the paper, Position');
+    check(await setSel('Layout', 'PagesPerSheet'), 'Multiple pages per sheet can be picked');
+    await sleep(250);
+    check(await js(`[...[...document.querySelectorAll('#settingsBox .field')].find(f => f.querySelector('.flabel span')?.textContent === 'Pages per sheet').querySelectorAll('option')].filter(o => !o.hidden).map(o => o.textContent).join(',')`) === '2,4,6,9,16', 'Pages per sheet: 2, 4, 6, 9, 16');
+    check(await setSel('Pages per sheet', '2x2') && await setSel('Page order', 'AcrossThenDownReversed'), 'pick 4 per sheet, Horizontal reversed');
+    await sleep(250);
+    check((await rowText(2)).includes('4 per sheet'), 'Sides column says 4 per sheet');
+    await shot('03b-layout-multiple');
+    await setSel('Page order', 'AcrossThenDown'); await setSel('Pages per sheet', '2x1'); await setSel('Layout', 'Normal');
+    await sleep(250);
+    check(!(await rowText(2)).includes('*'), 'set back: the invoice matches its preset again');
+    await sleep(800);   // its new estimate, before the totals are checked
+
     // print only the invoice and the label: untick the books
     // (the list redraws after each change: find the box again each time)
     for (const i of [0, 1]) await js(`(() => { const t = document.querySelectorAll('.row')[${i}].querySelector('.tick'); t.checked = false; t.dispatchEvent(new Event('change', { bubbles: true })); })()`);
@@ -194,6 +226,34 @@ app.whenReady().then(async () => {
     await shot('09-report');
     await click('.modal.report [data-a="close"]');
     check((await rowText(2)).includes('Printed'), 'printed files say Printed');
+
+    // Swap trays: the label's tray (Tray 3 of the HP 4303) is not on the HP M507 it now prints on
+    await pickRow(3); await sleep(250);
+    check(await setSel('Paper tray', 'Tray 3'), 'the label gets Tray 3');
+    await sleep(200);
+    check(await setSel('Printer', 'HP LaserJet M507'), 'then prints on the HP M507');
+    await sleep(500);
+    await key('P', ['control']);
+    await waitFor(() => js(`!!document.querySelector('.modal .est.swap')`), 'Swap trays box');
+    const swapText = await js(`document.querySelector('.modal').innerText`);
+    check(swapText.includes('Swap trays') && swapText.includes('HP LaserJet M507') && swapText.includes('Tray 3'), 'Swap trays names the printer and the missing tray');
+    check(await js(`[...document.querySelectorAll('.modal .est.swap select option')].map(o => o.textContent).join('|')`) === 'As in printer|Automatically Select|Tray 1|Tray 2', "the box offers the HP M507's own trays");
+    await js(`(() => { const s = document.querySelector('.modal .est.swap select'); s.value = 'Tray 2'; })()`);
+    await shot('09c-swap-trays');
+    await click('.modal [data-r="1"]');
+    await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'print question after Swap trays');
+    check((await rowText(3)).includes('Tray 2'), 'the label now uses Tray 2');
+    await click('.modal.ask [data-r="0"]'); await sleep(200);
+    // again with Tray 3: remembered, so no box; the question says so and offers Change trays…
+    await setSel('Printer', ''); await sleep(300); await setSel('Paper tray', 'Tray 3'); await sleep(200); await setSel('Printer', 'HP LaserJet M507'); await sleep(500);
+    await key('P', ['control']);
+    await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'print question with a remembered swap');
+    check(!(await js(`!!document.querySelector('.modal .est.swap')`)) && (await js(`document.querySelector('.modal.ask').innerText`)).includes('Tray 3 → Tray 2 on HP LaserJet M507'), 'a remembered swap is made without asking, and listed');
+    check(await js(`[...document.querySelectorAll('.modal.ask .acts .btn')].map(b => b.textContent).join('|')`) === 'Cancel|Change trays…|Print', 'the question offers Change trays…');
+    await shot('09d-print-remembered-swap');
+    await click('.modal.ask [data-r="0"]'); await sleep(200);
+    await setSel('Printer', ''); await sleep(300); await setSel('Paper tray', ''); await sleep(200);
+    check(!(await rowText(3)).includes('*'), 'the label is back to its preset');
 
     // blank paper: a separator row after the invoice, with the invoice's settings; Copies = how many blank sheets
     await click('#repMinus'); await click('#repMinus');
