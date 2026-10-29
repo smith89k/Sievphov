@@ -165,8 +165,13 @@ app.whenReady().then(async () => {
     check((await rowText(3)).includes('Both sides (long edge)') && (await rowText(3)).includes('2-sided'), 'Apply to selected gives the chosen preset to the selected file');
 
     // manage presets
+    await js(`localStorage.removeItem('sievphov-preset-tab')`);
     await click('#pManage');
     await waitFor(() => js(`!!document.querySelector('.modal.presets')`), 'presets box');
+    // the settings in tabs, one section at a time, opening on Layout
+    const shownSecs = () => js(`[...document.querySelectorAll('#pmEdit > .tsec')].filter(s => !s.hidden).map(s => s.dataset.sec).join()`);
+    check(await js(`document.querySelector('#pmTabs [aria-selected="true"]')?.dataset.sec`) === 'layout', 'Manage presets opens on the Layout tab');
+    check(await shownSecs() === 'layout', 'only the Layout section shows');
     // the sample paper: 8 numbered pages printed with the chosen preset
     await js(`document.querySelectorAll('#pmList li')[2].click()`);   // Book – booklet 2-sided
     await waitFor(() => js(`document.getElementById('pmSampleSum').textContent === '8 pages → 2 sheets, both sides'`), 'booklet sample');
@@ -178,7 +183,18 @@ app.whenReady().then(async () => {
     await waitFor(() => js(`document.getElementById('pmSampleSum').textContent === '8 pages → 1 sheet, both sides'`), '4 per sheet sample');
     check((await js(`document.querySelector('#pmSample figcaption').textContent`)) === 'Sheet 1 · front 1 | 2 | 3 | 4 · back 5 | 6 | 7 | 8', 'a change redraws the sample: 4 per sheet');
     await shot('06a-manage-presets-4-per-sheet');
-    await click('.modal.presets [data-a="cancel"]');   // the change is not kept
+    await click('#pmTabs [data-sec="paper"]');
+    check(await shownSecs() === 'paper', 'the Paper & tray tab shows only that section');
+    await click('#pmTabs [data-sec="watermark"]');
+    check(await js(`document.querySelector('#pmTabs [data-sec="watermark"] .dot').hidden`) === true, 'no Watermark dot while it is off');
+    await js(`(() => { const c = document.querySelector('#pmEdit .tsec[data-sec="watermark"] input[type=checkbox]'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    check(await js(`document.querySelector('#pmTabs [data-sec="watermark"] .dot').hidden`) === false, 'the Watermark tab shows a dot when it is on');
+    await click('.modal.presets [data-a="cancel"]');   // the changes are not kept
+    await sleep(300);
+    await click('#pManage'); await waitFor(() => js(`!!document.querySelector('.modal.presets')`), 'presets box again');
+    check(await js(`document.querySelector('#pmTabs [aria-selected="true"]')?.dataset.sec`) === 'watermark', 'the box remembers the last tab');
+    await click('.modal.presets [data-a="cancel"]');
+    await sleep(300);
 
     // dark theme
     await click('#bTheme'); await click('#bTheme');   // system → light → dark

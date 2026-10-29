@@ -704,13 +704,17 @@ function perSheetOpts(s) {
  * Builds the editor into `root`. ctx = { items() → the items (or presets) being edited, lib (for bold) | null,
  * set(path, value) }. Returns { sync() } to redraw values without rebuilding (keeps the focus while typing).
  */
-function buildEditor(root, ctx, { sections = SECTIONS, folded = true } = {}) {
+function buildEditor(root, ctx, { sections = SECTIONS, folded = true, tabs = null } = {}) {
   const bound = [];
   const foldedList = new Set(JSON.parse(lsGet('sievphov-folded') || '["watermark","logo"]'));
   const settingsOf = () => ctx.items().map(x => x.settings);
+  // tabs = { bar, key, first }: one section at a time, picked in a tab bar (Manage presets)
+  const tabBtns = [];
+  let tab = tabs ? lsGet(tabs.key) : null;
+  if (tabs) { if (!sections.some(s => s.sec === tab)) tab = tabs.first; tabs.bar.innerHTML = ''; tabs.bar.setAttribute('role', 'tablist'); }
   for (const sec of sections) {
     const el = document.createElement('section');
-    el.className = 'tsec' + (folded && foldedList.has(sec.sec) ? ' folded' : '');
+    el.className = 'tsec' + (tabs ? ' tabbed' : folded && foldedList.has(sec.sec) ? ' folded' : '');
     el.dataset.sec = sec.sec;
     el.innerHTML = `<h3><button class="tsec-head" aria-expanded="${!el.classList.contains('folded')}">${svg(sec.icon)}<span>${esc(sec.title)}</span>${sec.on ? '<span class="count" hidden>On</span>' : ''}<svg class="i chev" viewBox="0 0 24 24">${ICONS.up}</svg></button></h3>`;
     el.querySelector('.tsec-head').addEventListener('click', () => {
@@ -718,7 +722,19 @@ function buildEditor(root, ctx, { sections = SECTIONS, folded = true } = {}) {
       el.querySelector('.tsec-head').setAttribute('aria-expanded', !el.classList.contains('folded'));
       if (folded) { const f = new Set(JSON.parse(lsGet('sievphov-folded') || '[]')); el.classList.contains('folded') ? f.add(sec.sec) : f.delete(sec.sec); lsSet('sievphov-folded', JSON.stringify([...f])); }
     });
-    if (sec.on) bound.push({ sync: list => { el.querySelector('.count').hidden = !list.some(s => M.get(s, sec.on)); } });
+    let dot = null;
+    if (tabs) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'ptab'; b.dataset.sec = sec.sec; b.setAttribute('role', 'tab');
+      b.innerHTML = `${svg(sec.icon)}<span>${esc(sec.title)}</span>${sec.on ? '<i class="dot" title="On" hidden></i>' : ''}`;
+      b.addEventListener('click', () => showTab(sec.sec));
+      b.addEventListener('keydown', e => {
+        const d = { ArrowLeft: -1, ArrowRight: 1 }[e.key]; if (!d) return;
+        e.preventDefault(); const n = tabBtns[(tabBtns.indexOf(b) + d + tabBtns.length) % tabBtns.length]; showTab(n.dataset.sec); n.focus();
+      });
+      tabs.bar.appendChild(b); tabBtns.push(b); dot = b.querySelector('.dot');
+    }
+    if (sec.on) bound.push({ sync: list => { const on = list.some(s => M.get(s, sec.on)); el.querySelector('.count').hidden = !on; if (dot) dot.hidden = !on; } });
     if (sec.top) sec.top(el);
     addFields(el, sec.fields);
     root.appendChild(el);
@@ -848,6 +864,13 @@ function buildEditor(root, ctx, { sections = SECTIONS, folded = true } = {}) {
     control.addEventListener('change', go);
     control.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); control.select(); } });
   }
+  function showTab(id) {
+    tab = id; lsSet(tabs.key, id);
+    for (const el of root.querySelectorAll(':scope > .tsec.tabbed')) el.hidden = el.dataset.sec !== id;
+    for (const b of tabBtns) { const on = b.dataset.sec === id; b.setAttribute('aria-selected', on); b.tabIndex = on ? 0 : -1; }
+    root.scrollTop = 0;
+  }
+  if (tabs) showTab(tab);
   const api = { sync() { const list = settingsOf(); if (!list.length) return; for (const b of bound) b.sync(list); } };
   api.sync();
   return api;
@@ -996,12 +1019,14 @@ function openPresetManager(selectId) {
         <button class="btn danger" data-a="del" title="Delete" aria-label="Delete">${svg('trash')}</button>
       </div>
       <div class="pio"><button class="btn" data-a="imp" title="Add presets from a .svpreset file">${svg('import')}<span>Import…</span></button><button class="btn" data-a="exp" title="Save all presets to a file, to copy them to another PC">${svg('export')}<span>Export…</span></button></div></div></div>
-    <div class="pedit" id="pmEdit"></div>
-    <div class="psample"><div class="ps-head"><b>Sample paper</b><span id="pmSampleSum"></span></div><div class="ps-body" id="pmSample"></div></div>
+    <div class="pmain"><div class="pname" id="pmName"></div>
+      <div class="psample"><div class="ps-head"><b>Sample paper</b><span id="pmSampleSum"></span></div><div class="ps-body" id="pmSample"></div></div>
+      <div class="ptabs" id="pmTabs" aria-label="Settings"></div>
+      <div class="pedit" id="pmEdit"></div></div>
     <div class="acts"><span class="hint" style="margin-right:auto;color:var(--muted);font-size:12px">The default preset is given to files you add. Ctrl+1 … Ctrl+9 apply the first nine.</span>
       <button class="btn outline" data-a="cancel">Cancel</button><button class="btn primary" data-a="save">Save presets</button></div>`,
     { onCancel: () => close() });
-  const listEl2 = box.querySelector('#pmList'), editEl = box.querySelector('#pmEdit');
+  const listEl2 = box.querySelector('#pmList'), editEl = box.querySelector('#pmEdit'), nameEl = box.querySelector('#pmName'), tabsEl = box.querySelector('#pmTabs');
   let ed = null;
   function drawList() {
     listEl2.innerHTML = draft.Presets.map((p, i) => `<li data-id="${esc(p.Id)}" class="${cur && p.Id === cur.Id ? 'on' : ''}"><span class="nm">${esc(p.Name)}</span>${p.Id === draft.DefaultPresetId ? '<span class="def">Default</span>' : ''}<span class="kb">${i < 9 ? 'Ctrl+' + (i + 1) : ''}</span></li>`).join('') ||
@@ -1011,15 +1036,15 @@ function openPresetManager(selectId) {
     dis('def', !cur || cur.Id === draft.DefaultPresetId); dis('exp', !draft.Presets.length);
   }
   function drawEditor() {
-    editEl.innerHTML = '';
-    if (!cur) { editEl.innerHTML = '<p class="hint" style="padding:20px">Pick a preset on the left, or make a new one.</p>'; return; }
-    const name = document.createElement('div'); name.className = 'pname';
-    name.innerHTML = `<input type="text" value="${esc(cur.Name)}" aria-label="Preset name">`;
-    const input = name.querySelector('input');
+    editEl.innerHTML = ''; nameEl.innerHTML = ''; tabsEl.innerHTML = '';
+    box.querySelector('.pmain').classList.toggle('empty', !cur);
+    if (!cur) { editEl.innerHTML = '<p class="hint" style="padding:20px">Pick a preset on the left, or make a new one.</p>'; sampleSoon(0); return; }
+    nameEl.innerHTML = `<input type="text" value="${esc(cur.Name)}" aria-label="Preset name">`;
+    const input = nameEl.querySelector('input');
     input.addEventListener('change', () => { const v = input.value.trim(); if (v) cur.Name = M.uniqueName(draft, v, cur); input.value = cur.Name; drawList(); });
-    editEl.appendChild(name);
     const holder = { get settings() { return cur.Settings; } };
-    ed = buildEditor(editEl, { items: () => [holder], lib: null, set(path, value) { M.setField([{ settings: cur.Settings, presetId: null }], path, value, draft); ed.sync(); drawList(); sampleSoon(); } }, { folded: false });
+    ed = buildEditor(editEl, { items: () => [holder], lib: null, set(path, value) { M.setField([{ settings: cur.Settings, presetId: null }], path, value, draft); ed.sync(); drawList(); sampleSoon(); } },
+      { folded: false, tabs: { bar: tabsEl, key: 'sievphov-preset-tab', first: 'layout' } });
     sampleSoon(0);
   }
   // Sample paper: 8 made-up numbered pages with the chosen preset's settings, drawn by the engine as they print
