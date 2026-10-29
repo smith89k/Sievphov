@@ -69,3 +69,18 @@ test('real engine missing: a clear error, not a crash', async () => {
   const e = createEngine({ exe: path.join(os.tmpdir(), 'no-such-engine.exe') });
   await assert.rejects(e.request('printers'), err => err.reason === 'engine' && /missing/.test(err.message));
 });
+
+test('stand-in: booklet fronts only, booklet reverse = sheets, reversed page order', () => {
+  const s = M.normalize({ Layout: 'Booklet', BookletSides: 'Front', Sides: 'ShortEdge' });
+  const r = _fake.fakeSides(s, _fake.fakePages(s, 8));
+  assert.equal(r.twoSided, false);
+  assert.deepEqual(r.sides.map(x => x.slots), [[8, 1], [6, 3]]);
+  assert.equal(_fake.fakeEstimate({ ...s, Copies: 2 }, 8).sheets, 4);
+  const back = M.normalize({ Layout: 'Booklet', BookletSides: 'Back' });
+  assert.deepEqual(_fake.fakeSides(back, _fake.fakePages(back, 8)).sides.map(x => [x.slots, x.isBack]), [[[2, 7], true], [[4, 5], true]]);
+  const rev = M.normalize({ Layout: 'Booklet', Reverse: true });
+  assert.deepEqual(_fake.fakeSides(rev, _fake.fakePages(rev, 8)).sides.map(x => [x.sheet, x.slots]), [[0, [6, 3]], [0, [4, 5]], [1, [8, 1]], [1, [2, 7]]]);
+  assert.deepEqual(_fake.slotCell(M.normalize({ Layout: 'PagesPerSheet', Columns: 2, Rows: 2, Order: 'AcrossThenDownReversed' }), 0), [1, 0]);
+  assert.deepEqual(_fake.slotCell(M.normalize({ Layout: 'PagesPerSheet', Columns: 2, Rows: 2, Order: 'DownThenAcrossReversed' }), 1), [1, 1]);
+  assert.deepEqual(_fake.slotCell(M.normalize({ Layout: 'PagesPerSheet', Columns: 2, Rows: 2, Order: 'DownThenAcross' }), 2), [1, 0]);
+});

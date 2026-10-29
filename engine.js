@@ -110,18 +110,21 @@ function fakePages(s, n) {
       else { const a = num(t); if (isNaN(a)) throw new Error(`"${raw.trim()}" is not a page or range. Use e.g. 1-5, 8, 12-last.`); if (a <= n) pages.push(a); }
     }
   }
-  if (s.Reverse) pages.reverse();
+  if (s.Reverse && s.Layout !== 'Booklet') pages.reverse();   // a booklet reverses its sheets (fakeSides)
   return pages;
 }
 
 function fakeSides(s, pages) {
-  const twoSided = s.Layout === 'Booklet' || (s.Sides && s.Sides !== 'OneSide');
+  const only = s.BookletSides || 'Both';
+  const twoSided = s.Layout === 'Booklet' ? only === 'Both' : !!(s.Sides && s.Sides !== 'OneSide');
   if (s.Layout === 'Booklet') {
-    const n = Math.ceil(pages.length / 4) * 4, at = p => p <= pages.length ? pages[p - 1] : null, out = [];
-    for (let k = 0; k < n / 4; k++) {
-      let f = [at(n - 2 * k), at(2 * k + 1)], b = [at(2 * k + 2), at(n - 2 * k - 1)];
+    const n = Math.ceil(pages.length / 4) * 4, count = n / 4, at = p => p <= pages.length ? pages[p - 1] : null, out = [];
+    for (let k = 0; k < count; k++) {
+      const sh = s.Reverse ? count - 1 - k : k;
+      let f = [at(n - 2 * sh), at(2 * sh + 1)], b = [at(2 * sh + 2), at(n - 2 * sh - 1)];
       if (s.Binding === 'Right') { f.reverse(); b.reverse(); }
-      out.push({ sheet: k, isBack: false, slots: f }, { sheet: k, isBack: true, slots: b });
+      if (only !== 'Back') out.push({ sheet: k, isBack: false, slots: f });
+      if (only !== 'Front') out.push({ sheet: k, isBack: true, slots: b });
     }
     return { sides: out, twoSided };
   }
@@ -131,6 +134,18 @@ function fakeSides(s, pages) {
     out.push(twoSided ? { sheet: k >> 1, isBack: !!(k & 1), slots } : { sheet: k, isBack: false, slots });
   }
   return { sides: out, twoSided };
+}
+
+// [column, row] of slot k on a side, as LayoutMath.Slots (reversed orders start on the right)
+function slotCell(s, k) {
+  const cols = s.Layout === 'Booklet' ? 2 : s.Layout === 'PagesPerSheet' ? Math.max(1, s.Columns || 1) : 1;
+  const rows = s.Layout === 'PagesPerSheet' ? Math.max(1, s.Rows || 1) : 1;
+  if (s.Layout !== 'PagesPerSheet') return [k % cols, Math.floor(k / cols)];
+  const down = s.Order === 'DownThenAcross' || s.Order === 'DownThenAcrossReversed';
+  let c = down ? Math.floor(k / rows) : k % cols;
+  const r = down ? k % rows : Math.floor(k / cols);
+  if (s.Order === 'AcrossThenDownReversed' || s.Order === 'DownThenAcrossReversed') c = cols - 1 - c;
+  return [c, r];
 }
 
 function fakeEstimate(s, n, blank = false) {
@@ -159,7 +174,7 @@ function fakePreview(item, side, maxPx) {
   const gw = (W - 2 * m) / cols, gh = (H - 2 * m) / rows;
   let cells = '';
   sd.slots.forEach((p, k) => {
-    const c = k % cols, r = Math.floor(k / cols), x = m + c * gw + 8, y = m + r * gh + 8, w = gw - 16, h = gh - 16;
+    const [c, r] = slotCell(s, k), x = m + c * gw + 8, y = m + r * gh + 8, w = gw - 16, h = gh - 16;
     if (p == null || item.blank) return;
     cells += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fafafa" stroke="#bbb"/>` +
       `<rect x="${x + 16}" y="${y + 16}" width="${w * 0.5}" height="14" fill="#ddd"/>` +
@@ -246,4 +261,4 @@ function fakeEngine(emit, listeners) {
   };
 }
 
-module.exports = { createEngine, FAKE_PRINTERS, _fake: { fakePages, fakeSides, fakeEstimate } };
+module.exports = { createEngine, FAKE_PRINTERS, _fake: { fakePages, fakeSides, fakeEstimate, slotCell } };
