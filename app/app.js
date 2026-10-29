@@ -1032,7 +1032,7 @@ function openPresetManager(selectId) {
         <span class="ps-zoom" role="group" aria-label="Zoom"><button class="btn icon" id="pmOut" title="Smaller" aria-label="Smaller">−</button><button class="btn" id="pmFit" title="Show the whole sheet">Fit</button><button class="btn icon" id="pmIn" title="Larger" aria-label="Larger">+</button></span></div></div>
     <div class="acts"><span class="hint" style="margin-right:auto;color:var(--muted);font-size:12px">The default preset is given to files you add. Ctrl+1 … Ctrl+9 apply the first nine.</span>
       <button class="btn outline" data-a="cancel">Cancel</button><button class="btn primary" data-a="save">Save presets</button></div>`,
-    { onCancel: () => close() });
+    { full: true, onCancel: () => close() });   // fills the window under the title row, as Sastra PDF's print screen
   const pickEl = box.querySelector('#pmPick'), editEl = box.querySelector('#pmEdit'), nameEl = box.querySelector('#pmName'), tabsEl = box.querySelector('#pmTabs');
   let ed = null;
   function drawList() {
