@@ -15,7 +15,7 @@ const DEFAULTS = Object.freeze({
   PaperSize: '', Tray: '', Orientation: 'Auto', Sides: 'OneSide',
   Fit: 'Fit', ZoomPercent: 100, Alignment: 'Center',
   Grayscale: false, Dpi: 300,
-  Layout: 'Normal', Columns: 2, Rows: 1, Order: 'AcrossThenDown', GapMm: 5, Borders: false, Binding: 'Left', BookletGapMm: 10,
+  Layout: 'Normal', Columns: 2, Rows: 1, Order: 'AcrossThenDown', GapMm: 5, Borders: false, Binding: 'Left', BookletGapMm: 10, BookletSides: 'Both',
   PageNumbers: Object.freeze({ Enabled: false, Position: 'BottomCenter', Font: 'Khmer UI', SizePt: 11, Color: '#000000', StartAt: 1, Format: '{page}', Digits: 'Western', MarginMm: 8 }),
   Watermark: Object.freeze({ Enabled: false, Text: '{filename}', Font: 'Khmer UI', SizePt: 48, Color: '#FF0000', SeeThroughPercent: 70, Angle: 45, Position: 'Center', MarginMm: 10 }),
   Logo: Object.freeze({ Enabled: false, Path: '', WidthPercent: 20, Position: 'TopRight', SeeThroughPercent: 0, MarginMm: 10 })
@@ -49,15 +49,27 @@ function equal(a, b) {
   return false;
 }
 
-/** 'PageNumbers.Enabled' style paths. */
-const get = (s, p) => p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), s);
+// Settings the panel shows as one value: PerSheet = Columns × Rows ("3x2").
+const VIRTUAL = {
+  PerSheet: {
+    get: s => `${s.Columns}x${s.Rows}`,
+    set: (s, v) => { const [c, r] = String(v).split('x').map(Number); if (c >= 1 && r >= 1) { s.Columns = c; s.Rows = r; } }
+  }
+};
+/** Multiple pages per sheet: the numbers offered (as in Sastra PDF) and their Columns × Rows. */
+const PER_SHEET = Object.freeze([[2, '2x1'], [4, '2x2'], [6, '3x2'], [9, '3x3'], [16, '4x4']]);
+
+/** 'PageNumbers.Enabled' style paths, and the VIRTUAL ones. */
+const get = (s, p) => VIRTUAL[p] ? VIRTUAL[p].get(s) : p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), s);
 function set(s, p, v) {
+  if (VIRTUAL[p]) { VIRTUAL[p].set(s, v); return; }
   const keys = p.split('.'), last = keys.pop();
   const parent = keys.reduce((o, k) => o[k], s);
   parent[last] = v;
 }
 
-const isTwoSided = s => s.Layout === 'Booklet' || s.Sides !== 'OneSide';
+// a booklet prints both sides unless only its fronts or only its backs are printed
+const isTwoSided = s => s.Layout === 'Booklet' ? s.BookletSides === 'Both' : s.Sides !== 'OneSide';
 
 /* ---------------------------------------------------------------- presets */
 let idCounter = 0;
@@ -224,14 +236,42 @@ function byPrinter(items, estimates, defaultPrinter) {
   return [...map.values()].sort((a, b) => a.printer.localeCompare(b.printer));
 }
 
+/* ---------------------------------------------------------------- tray swaps */
+
+/**
+ * Files whose tray is not on the printer they print on, grouped: [{ printer, tray, trays, items }].
+ * capsOf(name) → { trays, exists } or null (not known). Printers that are not installed are left to their own error.
+ */
+function missingTrays(items, capsOf, defaultPrinter) {
+  const groups = new Map();
+  for (const it of items) {
+    const tray = it.settings.Tray, printer = it.settings.PrinterName || defaultPrinter;
+    if (!tray || !printer) continue;
+    const caps = capsOf(printer);
+    if (!caps || !caps.exists || caps.trays.includes(tray)) continue;
+    const key = printer + ' ' + tray;
+    if (!groups.has(key)) groups.set(key, { printer, tray, trays: caps.trays.slice(), items: [] });
+    groups.get(key).items.push(it);
+  }
+  return [...groups.values()];
+}
+/** The remembered tray for `from` on `printer`, when it is still there ('' = as in printer); else null. */
+function rememberedSwap(swaps, printer, from, trays) {
+  const m = (swaps || []).find(x => x.Printer === printer && x.From === from);
+  return m && (m.To === '' || trays.includes(m.To)) ? m.To : null;
+}
+/** Remembers an answer (one per printer and tray): a new array. */
+const rememberSwap = (swaps, printer, from, to) =>
+  [...(swaps || []).filter(x => !(x.Printer === printer && x.From === from)), { Printer: printer, From: from, To: to }];
+
 /** Western digits → Khmer digits ០-៩ (for showing numbers the way page numbers will print). */
 const khmerDigits = s => String(s).replace(/[0-9]/g, d => String.fromCharCode(0x17E0 + +d));
 
 const M = {
-  DEFAULTS, defaults, normalize, clone, equal, get, set, isTwoSided, newId,
+  DEFAULTS, PER_SHEET, defaults, normalize, clone, equal, get, set, isTwoSided, newId,
   starterLibrary, readLibrary, findPreset, findPresetByName, defaultPreset, uniqueName, importInto,
   applyPreset, markModified, setField, setAll, resetToPreset, libraryChanged, presetLabel, shared, differsFromPreset,
-  toJob, fromJob, jobRepeat, reportCsv, byPrinter, khmerDigits
+  toJob, fromJob, jobRepeat, reportCsv, byPrinter, missingTrays, rememberedSwap, rememberSwap, khmerDigits
 };
 if (typeof module === 'object' && module.exports) module.exports = M; else root.SievphovModel = M;
 })(this);

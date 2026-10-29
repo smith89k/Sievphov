@@ -171,3 +171,45 @@ test('report CSV quotes commas and quotes; per-printer totals; Khmer digits', ()
   assert.deepEqual(rows, [{ printer: 'HP', files: 2, pages: 12, sheets: 6 }, { printer: 'Tally', files: 1, pages: 4, sheets: 4 }]);
   assert.equal(M.khmerDigits('Page 120'), 'Page ១២០');
 });
+
+test('booklet front or back only prints one-sided; old files read as both sides', () => {
+  assert.equal(M.normalize({ Layout: 'Booklet' }).BookletSides, 'Both');
+  assert.equal(M.isTwoSided(M.normalize({ Layout: 'Booklet' })), true);
+  assert.equal(M.isTwoSided(M.normalize({ Layout: 'Booklet', BookletSides: 'Front' })), false);
+  assert.equal(M.isTwoSided(M.normalize({ Sides: 'LongEdge' })), true);
+});
+
+test('pages per sheet is Columns × Rows as one value', () => {
+  const s = M.defaults();
+  assert.equal(M.get(s, 'PerSheet'), '2x1');
+  M.set(s, 'PerSheet', '3x2');
+  assert.equal(s.Columns, 3); assert.equal(s.Rows, 2);
+  const { lib, a } = twoPresets(), x = item(1);
+  M.applyPreset([x], a);
+  M.setField([x], 'PerSheet', '2x2', lib);
+  assert.equal(x.settings.Columns, 2); assert.equal(x.settings.Rows, 2); assert.equal(x.modified, true);
+  assert.equal(M.differsFromPreset([x], 'PerSheet', lib), true);
+  assert.deepEqual(M.shared([x, item(2)], 'PerSheet'), { value: '2x2', mixed: true });
+});
+
+test('missing trays are grouped by printer and tray', () => {
+  const caps = { 'HP 4303': { trays: ['Tray 1', 'Tray 2', 'Tray 3'], exists: true }, 'HP M507': { trays: ['Tray 1', 'Tray 2'], exists: true }, Gone: { trays: [], exists: false } };
+  const capsOf = n => caps[n] || null;
+  const it = (n, PrinterName, Tray) => item(n, { settings: M.normalize({ PrinterName, Tray }) });
+  const list = [it(1, 'HP M507', 'Tray 3'), it(2, 'HP M507', 'Tray 3'), it(3, 'HP 4303', 'Tray 3'), it(4, '', 'Tray 3'), it(5, 'Gone', 'Tray 3'), it(6, 'HP M507', ''), it(7, 'Unknown', 'Tray 3')];
+  const g = M.missingTrays(list, capsOf, 'HP M507');
+  assert.equal(g.length, 1);
+  assert.deepEqual([g[0].printer, g[0].tray, g[0].items.map(x => x.id)], ['HP M507', 'Tray 3', ['f1', 'f2', 'f4']]);
+  assert.deepEqual(g[0].trays, ['Tray 1', 'Tray 2']);
+});
+
+test('remembered tray swaps', () => {
+  let sw = M.rememberSwap([], 'HP M507', 'Tray 3', 'Tray 2');
+  sw = M.rememberSwap(sw, 'HP M507', 'Tray 3', 'Tray 1');
+  assert.equal(sw.length, 1, 'one answer per printer and tray');
+  assert.equal(M.rememberedSwap(sw, 'HP M507', 'Tray 3', ['Tray 1', 'Tray 2']), 'Tray 1');
+  assert.equal(M.rememberedSwap(sw, 'HP M507', 'Tray 3', ['Tray 2']), null, 'that tray is gone');
+  assert.equal(M.rememberedSwap(M.rememberSwap([], 'P', 'T', ''), 'P', 'T', []), '', 'As in printer');
+  assert.equal(M.rememberedSwap(sw, 'Other', 'Tray 3', ['Tray 1']), null);
+  assert.equal(M.rememberedSwap(undefined, 'P', 'T', []), null);
+});
