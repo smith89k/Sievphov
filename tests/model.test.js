@@ -236,6 +236,11 @@ test('a tray remembers its printer: Swap trays asks printer A tray → printer B
   // presets and jobs saved before: the tray belongs to their printer
   assert.equal(M.normalize({ PrinterName: 'Canon', Tray: 'Drawer 1' }).TrayPrinter, 'Canon');
   assert.equal(M.normalize({ Tray: 'Drawer 1' }).TrayPrinter, '');
+  // the note alone does not make a file "changed by hand"
+  const pr = { Id: 'p', Name: 'P', Settings: M.normalize({}) }, lib2 = { Presets: [pr], DefaultPresetId: 'p' };
+  const f = item(4, { settings: M.clone(pr.Settings), presetId: 'p' });
+  M.setField([f], 'Tray', 'Tray 2', lib2, 'HP'); M.setField([f], 'Tray', '', lib2, 'HP');
+  assert.equal(f.modified, false);
 });
 
 test('remembered tray swaps', () => {

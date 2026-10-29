@@ -191,6 +191,7 @@ app.whenReady().then(async () => {
     await shot('06a-manage-presets-4-per-sheet');
     // wide pages, 2 per sheet: stacked on an upright sheet, as Sastra PDF
     await pickField('Pages per sheet', '2x1');
+    await pickField('Orientation', 'Auto');   // the Book preset is landscape on purpose
     await click('.psample [data-wide="1"]');
     await waitFor(async () => (await sampleText()) === 'Sheet 1 of 2 · front / pages 1 | 2', 'wide sample, 2 per sheet');
     check(await js(`(() => { const e = document.querySelector('#pmStage .ps-side'); return e.offsetHeight > e.offsetWidth; })()`), '2 wide pages per sheet print on an upright sheet');

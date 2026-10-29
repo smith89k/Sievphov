@@ -141,7 +141,8 @@ function applyPreset(items, preset) {
 /** After a change by hand: the item keeps its preset and gets a * when it now differs from it. */
 function markModified(it, lib) {
   const p = findPreset(lib, it.presetId);
-  if (p) { it.presetName = p.Name; it.modified = !equal(it.settings, p.Settings); }
+  // TrayPrinter is only a note (where the tray was picked): it alone does not make a file "changed by hand"
+  if (p) { it.presetName = p.Name; it.modified = !equal({ ...it.settings, TrayPrinter: '' }, { ...p.Settings, TrayPrinter: '' }); }
   else { it.presetId = null; it.presetName = null; it.modified = true; }
 }
 
