@@ -20,7 +20,7 @@ public static class SheetLayout
     {
         return s.Layout switch
         {
-            LayoutMode.Booklet => Booklet(pages, s.Binding),
+            LayoutMode.Booklet => Booklet(pages, s.Binding, s.BookletSides, s.Reverse),
             LayoutMode.PagesPerSheet => Chunked(pages, s.SlotsPerSide, s.IsTwoSided),
             _ => Chunked(pages, 1, s.IsTwoSided),
         };
@@ -40,17 +40,21 @@ public static class SheetLayout
 
     /// <summary>
     /// Booklet order: pad to a multiple of 4 (N). Sheet s front = [N−2s, 2s+1], back = [2s+2, N−2s−1]
-    /// (left, right), for left binding. Right binding swaps left and right.
+    /// (left, right), for left binding. Right binding swaps left and right. <paramref name="only"/> keeps only the
+    /// fronts or only the backs (printed one-sided); <paramref name="reverse"/> prints the last sheet first.
+    /// Sheet numbers follow the printing order, so copies keep it.
     /// </summary>
-    public static List<SheetSide> Booklet(IReadOnlyList<int> pages, BindingEdge binding)
+    public static List<SheetSide> Booklet(IReadOnlyList<int> pages, BindingEdge binding,
+        BookletSidesMode only = BookletSidesMode.Both, bool reverse = false)
     {
         var sides = new List<SheetSide>();
         if (pages.Count == 0) return sides;
-        int n = (pages.Count + 3) / 4 * 4;
+        int n = (pages.Count + 3) / 4 * 4, count = n / 4;
         int? At(int pos) => pos <= pages.Count ? pages[pos - 1] : null;
 
-        for (int s = 0; s < n / 4; s++)
+        for (int k = 0; k < count; k++)
         {
+            int s = reverse ? count - 1 - k : k;
             var front = new[] { At(n - 2 * s), At(2 * s + 1) };
             var back = new[] { At(2 * s + 2), At(n - 2 * s - 1) };
             if (binding == BindingEdge.Right)
@@ -58,8 +62,8 @@ public static class SheetLayout
                 Array.Reverse(front);
                 Array.Reverse(back);
             }
-            sides.Add(new SheetSide(s, false, front));
-            sides.Add(new SheetSide(s, true, back));
+            if (only != BookletSidesMode.Back) sides.Add(new SheetSide(k, false, front));
+            if (only != BookletSidesMode.Front) sides.Add(new SheetSide(k, true, back));
         }
         return sides;
     }

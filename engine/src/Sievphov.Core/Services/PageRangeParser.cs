@@ -84,7 +84,7 @@ public static class PageRangeParser
             PageSelection.Range => Parse(settings.PageRange, pageCount),
             _ => Enumerable.Range(1, pageCount).ToList(),
         };
-        if (settings.Reverse) pages.Reverse();
+        if (settings.Reverse && settings.Layout != LayoutMode.Booklet) pages.Reverse();   // a booklet reverses its sheets
         return pages;
     }
 

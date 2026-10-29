@@ -57,8 +57,9 @@ public static class LayoutMath
                 for (int i = 0; i < slots.Length; i++)
                 {
                     int col, row;
-                    if (s.Order == NUpOrder.AcrossThenDown) { col = i % cols; row = i / cols; }
+                    if (s.Order is NUpOrder.AcrossThenDown or NUpOrder.AcrossThenDownReversed) { col = i % cols; row = i / cols; }
                     else { row = i % rows; col = i / rows; }
+                    if (s.Order is NUpOrder.AcrossThenDownReversed or NUpOrder.DownThenAcrossReversed) col = cols - 1 - col;
                     slots[i] = new RectangleF(area.Left + col * (w + gap), area.Top + row * (h + gap), w, h);
                 }
                 return slots;

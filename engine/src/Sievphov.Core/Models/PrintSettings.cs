@@ -10,8 +10,11 @@ public enum OrientationMode { Auto, Portrait, Landscape }
 public enum FitMode { Fit, ShrinkOnly, ActualSize, Fill, Zoom }
 public enum Align9 { TopLeft, Top, TopRight, Left, Center, Right, BottomLeft, Bottom, BottomRight }
 public enum LayoutMode { Normal, PagesPerSheet, Booklet }
-public enum NUpOrder { AcrossThenDown, DownThenAcross }
+/// <summary>Reversed = the first page on the right (columns from the right).</summary>
+public enum NUpOrder { AcrossThenDown, DownThenAcross, AcrossThenDownReversed, DownThenAcrossReversed }
 public enum BindingEdge { Left, Right }
+/// <summary>A booklet's sides: both, or only the fronts / only the backs (printers that print one side).</summary>
+public enum BookletSidesMode { Both, Front, Back }
 public enum DigitStyle { Western, Khmer }
 
 public enum StampPosition
@@ -38,6 +41,7 @@ public sealed class PrintSettings
     public PageSelection Pages { get; set; } = PageSelection.All;
     /// <summary>Used when <see cref="Pages"/> is Range, e.g. "1-5, 8, 12-last".</summary>
     public string PageRange { get; set; } = "";
+    /// <summary>Last page first; for a booklet, the last sheet first (its pages stay in reading order).</summary>
     public bool Reverse { get; set; }
 
     /// <summary>Empty = the printer's default paper.</summary>
@@ -63,13 +67,14 @@ public sealed class PrintSettings
     public bool Borders { get; set; }
     public BindingEdge Binding { get; set; } = BindingEdge.Left;
     public double BookletGapMm { get; set; } = 10;
+    public BookletSidesMode BookletSides { get; set; } = BookletSidesMode.Both;
 
     public PageNumberSettings PageNumbers { get; set; } = new();
     public TextWatermarkSettings Watermark { get; set; } = new();
     public ImageWatermarkSettings Logo { get; set; } = new();
 
     [JsonIgnore]
-    public bool IsTwoSided => Layout == LayoutMode.Booklet || Sides != SidesMode.OneSide;
+    public bool IsTwoSided => Layout == LayoutMode.Booklet ? BookletSides == BookletSidesMode.Both : Sides != SidesMode.OneSide;
 
     [JsonIgnore]
     public int SlotsPerSide => Layout switch

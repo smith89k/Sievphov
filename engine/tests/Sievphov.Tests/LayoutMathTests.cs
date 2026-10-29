@@ -43,6 +43,21 @@ public class LayoutMathTests
     }
 
     [Fact]
+    public void NUpReversedOrdersStartOnTheRight()
+    {
+        var s = new PrintSettings { Layout = LayoutMode.PagesPerSheet, Columns = 2, Rows = 2, GapMm = 0, Order = NUpOrder.AcrossThenDownReversed };
+        var a = LayoutMath.Slots(Box, s);
+        Assert.Equal(new PointF(400, 0), a[0].Location);     // page 1 top right
+        Assert.Equal(new PointF(0, 0), a[1].Location);
+        Assert.Equal(new PointF(400, 500), a[2].Location);
+        s.Order = NUpOrder.DownThenAcrossReversed;
+        var d = LayoutMath.Slots(Box, s);
+        Assert.Equal(new PointF(400, 0), d[0].Location);
+        Assert.Equal(new PointF(400, 500), d[1].Location);   // page 2 below page 1
+        Assert.Equal(new PointF(0, 0), d[2].Location);
+    }
+
+    [Fact]
     public void BookletHalvesWithGapAndPagesAgainstFold()
     {
         var s = new PrintSettings { Layout = LayoutMode.Booklet, BookletGapMm = 25.4 }; // 100 units

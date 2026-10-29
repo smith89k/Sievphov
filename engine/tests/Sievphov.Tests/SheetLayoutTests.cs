@@ -49,6 +49,42 @@ public class SheetLayoutTests
     }
 
     [Fact]
+    public void BookletFrontsOnlyAndBacksOnly()
+    {
+        var fronts = SheetLayout.Booklet(Pages(8), BindingEdge.Left, BookletSidesMode.Front);
+        Assert.Equal(2, fronts.Count);
+        Assert.Equal(new int?[] { 8, 1 }, fronts[0].Slots);
+        Assert.Equal(new int?[] { 6, 3 }, fronts[1].Slots);
+        Assert.Equal(new[] { 0, 1 }, fronts.Select(x => x.Sheet));
+        var backs = SheetLayout.Booklet(Pages(8), BindingEdge.Left, BookletSidesMode.Back);
+        Assert.Equal(new int?[] { 2, 7 }, backs[0].Slots);
+        Assert.Equal(new int?[] { 4, 5 }, backs[1].Slots);
+        Assert.All(backs, b => Assert.True(b.IsBack));
+    }
+
+    [Fact]
+    public void BookletFrontOnlyIsOneSidedWithCopies()
+    {
+        var s = new PrintSettings { Layout = LayoutMode.Booklet, BookletSides = BookletSidesMode.Front, Copies = 2 };
+        Assert.False(s.IsTwoSided);
+        var sides = SheetLayout.Build(Pages(8), s);
+        Assert.Equal(4, SheetLayout.WithCopies(sides, s).Count);
+        Assert.Equal(2, SheetLayout.SheetsPerCopy(sides, s));
+    }
+
+    [Fact]
+    public void BookletReversePrintsTheLastSheetFirst()
+    {
+        var s = new PrintSettings { Layout = LayoutMode.Booklet, Reverse = true };
+        var sides = SheetLayout.Build(PageRangeParser.SelectPages(s, 8), s);
+        Assert.Equal(new int?[] { 6, 3 }, sides[0].Slots);   // sheet 2 front, printed first
+        Assert.Equal(new int?[] { 4, 5 }, sides[1].Slots);
+        Assert.Equal(new int?[] { 8, 1 }, sides[2].Slots);
+        Assert.Equal(0, sides[0].Sheet);
+        Assert.Equal(new int?[] { 6, 3 }, SheetLayout.WithCopies(sides, s)[0].Slots);   // the order stays with copies
+    }
+
+    [Fact]
     public void FourUpPutsFourPagesPerSide()
     {
         var s = new PrintSettings { Layout = LayoutMode.PagesPerSheet, Columns = 2, Rows = 2 };
