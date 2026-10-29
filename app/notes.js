@@ -9,6 +9,13 @@ const KINDS = Object.freeze(['new', 'improved', 'fixed', 'removed']);   // the w
 const N = (version, date, notes) => Object.freeze({ version, date, notes: Object.freeze(notes.map(([kind, text]) => Object.freeze({ kind, text }))) });
 
 const NOTES = Object.freeze([
+  N('2.2.0', '2026-10-29', [
+    ['new', 'Manage presets fills the window, like Sastra PDF\'s print screen: the settings on the left in tabs (Printer, Paper, Layout, Numbers, Watermark, Logo), a sample sheet in the middle printed with the chosen preset, and your presets on the right. Step through the sample sheets with ‹ ›, zoom with − Fit +, and switch between upright and wide sample pages.'],
+    ['improved', 'Multiple pages per sheet places pages as Sastra PDF does: the grid turns with the sheet and pages are never turned sideways (2 wide pages per sheet now stack on an upright sheet). Print page border goes round each page.'],
+    ['improved', 'Previews show a thin grey edge round each page on a sheet, so you can see where one page ends. It is never printed.'],
+    ['improved', 'Swap trays shows where each tray comes from: printer A · Tray 1 → printer B · the tray you pick, one row per tray, with the files under it. It lists every file each time; a tray you chose before is already picked (As last time).'],
+    ['fixed', 'Swap trays no longer leaves out files whose tray swap was remembered.']
+  ]),
   N('2.1.0', '2026-10-29', [
     ['new', 'Swap trays: when a file prints on a printer that does not have its paper tray (for example a preset made for another printer), Print first asks which of that printer\'s trays to use. Tick Remember for next time and it is done by itself afterwards; the print question then says which trays were swapped, and Change trays… picks again.'],
     ['new', 'Booklets can print the front sides only or the back sides only, for printers that cannot print on both sides: print the fronts, put the stack back in the tray, then print the backs.'],

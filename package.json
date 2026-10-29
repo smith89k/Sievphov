@@ -1,7 +1,7 @@
 {
   "name": "sievphov",
   "productName": "Sievphov",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Sievphov (សៀវភៅ) — print many PDF files in one go, each with its own printer, tray and settings",
   "main": "main.js",
   "author": "Sunnguon Taing",
