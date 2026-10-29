@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('sievphov', {
   addFolderDialog: () => ipcRenderer.invoke('add-folder-dialog'),
   expandPaths: (paths, sub) => ipcRenderer.invoke('expand-paths', paths, sub),
   fileExists: p => ipcRenderer.invoke('file-exists', p),
+  samplePdf: wide => ipcRenderer.invoke('sample-pdf', !!wide),   // → { path, pageCount, pageSizes }
   openJobDialog: () => ipcRenderer.invoke('open-job-dialog'),
   readJob: p => ipcRenderer.invoke('read-job', p),
   saveJob: (filePath, job, name) => ipcRenderer.invoke('save-job', { filePath, job, name }),

@@ -704,13 +704,17 @@ function perSheetOpts(s) {
  * Builds the editor into `root`. ctx = { items() → the items (or presets) being edited, lib (for bold) | null,
  * set(path, value) }. Returns { sync() } to redraw values without rebuilding (keeps the focus while typing).
  */
-function buildEditor(root, ctx, { sections = SECTIONS, folded = true } = {}) {
+function buildEditor(root, ctx, { sections = SECTIONS, folded = true, tabs = null } = {}) {
   const bound = [];
   const foldedList = new Set(JSON.parse(lsGet('sievphov-folded') || '["watermark","logo"]'));
   const settingsOf = () => ctx.items().map(x => x.settings);
+  // tabs = { bar, key, first }: one section at a time, picked in a tab bar (Manage presets)
+  const tabBtns = [];
+  let tab = tabs ? lsGet(tabs.key) : null;
+  if (tabs) { if (!sections.some(s => s.sec === tab)) tab = tabs.first; tabs.bar.innerHTML = ''; tabs.bar.setAttribute('role', 'tablist'); }
   for (const sec of sections) {
     const el = document.createElement('section');
-    el.className = 'tsec' + (folded && foldedList.has(sec.sec) ? ' folded' : '');
+    el.className = 'tsec' + (tabs ? ' tabbed' : folded && foldedList.has(sec.sec) ? ' folded' : '');
     el.dataset.sec = sec.sec;
     el.innerHTML = `<h3><button class="tsec-head" aria-expanded="${!el.classList.contains('folded')}">${svg(sec.icon)}<span>${esc(sec.title)}</span>${sec.on ? '<span class="count" hidden>On</span>' : ''}<svg class="i chev" viewBox="0 0 24 24">${ICONS.up}</svg></button></h3>`;
     el.querySelector('.tsec-head').addEventListener('click', () => {
@@ -718,7 +722,19 @@ function buildEditor(root, ctx, { sections = SECTIONS, folded = true } = {}) {
       el.querySelector('.tsec-head').setAttribute('aria-expanded', !el.classList.contains('folded'));
       if (folded) { const f = new Set(JSON.parse(lsGet('sievphov-folded') || '[]')); el.classList.contains('folded') ? f.add(sec.sec) : f.delete(sec.sec); lsSet('sievphov-folded', JSON.stringify([...f])); }
     });
-    if (sec.on) bound.push({ sync: list => { el.querySelector('.count').hidden = !list.some(s => M.get(s, sec.on)); } });
+    let dot = null;
+    if (tabs) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'ptab'; b.dataset.sec = sec.sec; b.setAttribute('role', 'tab');
+      b.title = sec.title; b.innerHTML = `${svg(sec.icon)}<span>${esc(tabs.names?.[sec.sec] || sec.title)}</span>${sec.on ? '<i class="dot" title="On" hidden></i>' : ''}`;
+      b.addEventListener('click', () => showTab(sec.sec));
+      b.addEventListener('keydown', e => {
+        const d = { ArrowLeft: -1, ArrowRight: 1 }[e.key]; if (!d) return;
+        e.preventDefault(); const n = tabBtns[(tabBtns.indexOf(b) + d + tabBtns.length) % tabBtns.length]; showTab(n.dataset.sec); n.focus();
+      });
+      tabs.bar.appendChild(b); tabBtns.push(b); dot = b.querySelector('.dot');
+    }
+    if (sec.on) bound.push({ sync: list => { const on = list.some(s => M.get(s, sec.on)); el.querySelector('.count').hidden = !on; if (dot) dot.hidden = !on; } });
     if (sec.top) sec.top(el);
     addFields(el, sec.fields);
     root.appendChild(el);
@@ -848,6 +864,13 @@ function buildEditor(root, ctx, { sections = SECTIONS, folded = true } = {}) {
     control.addEventListener('change', go);
     control.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); control.select(); } });
   }
+  function showTab(id) {
+    tab = id; lsSet(tabs.key, id);
+    for (const el of root.querySelectorAll(':scope > .tsec.tabbed')) el.hidden = el.dataset.sec !== id;
+    for (const b of tabBtns) { const on = b.dataset.sec === id; b.setAttribute('aria-selected', on); b.tabIndex = on ? 0 : -1; }
+    root.scrollTop = 0;
+  }
+  if (tabs) showTab(tab);
   const api = { sync() { const list = settingsOf(); if (!list.length) return; for (const b of bound) b.sync(list); } };
   api.sync();
   return api;
@@ -900,7 +923,7 @@ function buildPanel() {
     lib: state.lib,
     set(path, value) {
       if (state.printing) { toast('Settings can be changed again when printing has finished.'); syncPanel(); return; }
-      M.setField(selected(), path, value, state.lib);
+      M.setField(selected(), path, value, state.lib, defaultPrinter());
       markDirty(); refresh();
     }
   });
@@ -983,8 +1006,9 @@ function openPresetManager(selectId) {
   if (state.printing) { toast('Presets can be changed when printing has finished.'); return; }
   const draft = M.clone(state.lib);
   let cur = M.findPreset(draft, selectId) || M.findPreset(draft, state.presetPick?.Id) || draft.Presets[0] || null;
+  // fills the window as Sastra PDF's print screen: settings on the left, one big sample sheet in the middle, the presets on the right
   const { box, close } = openBox('presets', `<div class="head"><h2>Manage presets</h2></div>
-    <div class="plist"><ul id="pmList"></ul><div class="ptools">
+    <div class="plist"><h4>Presets</h4><ul id="pmList"></ul><div class="ptools">
       <button class="btn pnew" data-a="new">${svg('plus')}<span>New preset</span></button>
       <div class="picons" role="toolbar" aria-label="The chosen preset">
         <button class="btn" data-a="dup" title="Duplicate" aria-label="Duplicate">${svg('copy')}</button>
@@ -996,11 +1020,20 @@ function openPresetManager(selectId) {
         <button class="btn danger" data-a="del" title="Delete" aria-label="Delete">${svg('trash')}</button>
       </div>
       <div class="pio"><button class="btn" data-a="imp" title="Add presets from a .svpreset file">${svg('import')}<span>Import…</span></button><button class="btn" data-a="exp" title="Save all presets to a file, to copy them to another PC">${svg('export')}<span>Export…</span></button></div></div></div>
-    <div class="pedit" id="pmEdit"></div>
+    <div class="pmain"><div class="pname" id="pmName"></div>
+      <div class="ptabs" id="pmTabs" aria-label="Settings"></div>
+      <div class="pedit" id="pmEdit"></div></div>
+    <div class="psample"><div class="ps-head"><b>Sample paper</b>
+        <span class="seg" role="group" aria-label="Sample pages"><button data-wide="0">Upright pages</button><button data-wide="1">Wide pages</button></span>
+        <span id="pmSampleSum"></span></div>
+      <div class="ps-stage" id="pmStage"></div>
+      <div class="ps-nav"><button class="btn icon" id="pmPrev" title="Previous side (←)" aria-label="Previous side">${svg('left')}</button><span id="pmNum"></span>
+        <button class="btn icon" id="pmNext" title="Next side (→)" aria-label="Next side">${svg('right')}</button><span class="ps-pages" id="pmPages"></span>
+        <span class="ps-zoom" role="group" aria-label="Zoom"><button class="btn icon" id="pmOut" title="Smaller" aria-label="Smaller">−</button><button class="btn" id="pmFit" title="Show the whole sheet">Fit</button><button class="btn icon" id="pmIn" title="Larger" aria-label="Larger">+</button></span></div></div>
     <div class="acts"><span class="hint" style="margin-right:auto;color:var(--muted);font-size:12px">The default preset is given to files you add. Ctrl+1 … Ctrl+9 apply the first nine.</span>
       <button class="btn outline" data-a="cancel">Cancel</button><button class="btn primary" data-a="save">Save presets</button></div>`,
-    { onCancel: () => close() });
-  const listEl2 = box.querySelector('#pmList'), editEl = box.querySelector('#pmEdit');
+    { full: true, onCancel: () => close() });   // fills the window under the title row, as Sastra PDF's print screen
+  const listEl2 = box.querySelector('#pmList'), editEl = box.querySelector('#pmEdit'), nameEl = box.querySelector('#pmName'), tabsEl = box.querySelector('#pmTabs');
   let ed = null;
   function drawList() {
     listEl2.innerHTML = draft.Presets.map((p, i) => `<li data-id="${esc(p.Id)}" class="${cur && p.Id === cur.Id ? 'on' : ''}"><span class="nm">${esc(p.Name)}</span>${p.Id === draft.DefaultPresetId ? '<span class="def">Default</span>' : ''}<span class="kb">${i < 9 ? 'Ctrl+' + (i + 1) : ''}</span></li>`).join('') ||
@@ -1010,16 +1043,82 @@ function openPresetManager(selectId) {
     dis('def', !cur || cur.Id === draft.DefaultPresetId); dis('exp', !draft.Presets.length);
   }
   function drawEditor() {
-    editEl.innerHTML = '';
-    if (!cur) { editEl.innerHTML = '<p class="hint" style="padding:20px">Pick a preset on the left, or make a new one.</p>'; return; }
-    const name = document.createElement('div'); name.className = 'pname';
-    name.innerHTML = `<input type="text" value="${esc(cur.Name)}" aria-label="Preset name">`;
-    const input = name.querySelector('input');
+    editEl.innerHTML = ''; nameEl.innerHTML = ''; tabsEl.innerHTML = '';
+    box.classList.toggle('empty', !cur);
+    sideAt = 0;
+    if (!cur) { editEl.innerHTML = '<p class="hint" style="padding:20px">Click New preset, or Import… presets from a file.</p>'; sampleSoon(0); return; }
+    nameEl.innerHTML = `<input type="text" value="${esc(cur.Name)}" aria-label="Preset name">`;
+    const input = nameEl.querySelector('input');
     input.addEventListener('change', () => { const v = input.value.trim(); if (v) cur.Name = M.uniqueName(draft, v, cur); input.value = cur.Name; drawList(); });
-    editEl.appendChild(name);
     const holder = { get settings() { return cur.Settings; } };
-    ed = buildEditor(editEl, { items: () => [holder], lib: null, set(path, value) { M.setField([{ settings: cur.Settings, presetId: null }], path, value, draft); ed.sync(); drawList(); } }, { folded: false });
+    ed = buildEditor(editEl, { items: () => [holder], lib: null, set(path, value) { M.setField([{ settings: cur.Settings, presetId: null }], path, value, draft, defaultPrinter()); ed.sync(); drawList(); sampleSoon(); } },
+      { folded: false, tabs: { bar: tabsEl, key: 'sievphov-preset-tab', first: 'layout',
+        names: { printer: 'Printer', paper: 'Paper', layout: 'Layout', numbers: 'Numbers', watermark: 'Watermark', logo: 'Logo' } } });
+    sampleSoon(0);
   }
+  // Sample paper: 8 made-up numbered pages (upright or wide) with the chosen preset's settings, drawn by the engine as
+  // they print; one side at a time, as Sastra PDF's print screen: ‹ › go through the sides, − Fit + zoom
+  const q = s => box.querySelector(s), stage = q('#pmStage'), sampleSum = q('#pmSampleSum');
+  const ZOOMS = [1, 1.5, 2, 3];   // × the size that shows the whole sheet
+  let sampleT = 0, sampleRun = 0, sideAt = 0, zoomAt = 0, shown = null, sideCount = 0;
+  let wide = lsGet('sievphov-sample-wide') === '1';
+  const docs = {}, pics = new Map();   // sample PDFs by kind; drawn sides by settings + side + size
+  function sampleSoon(ms = 300) { clearTimeout(sampleT); sampleT = setTimeout(drawSample, ms); }
+  async function drawSample() {
+    const run = ++sampleRun, gone = () => run !== sampleRun || !box.isConnected;
+    q('.psample').querySelectorAll('[data-wide]').forEach(b => b.classList.toggle('on', +b.dataset.wide === +wide));
+    if (!cur) { stage.innerHTML = ''; sampleSum.textContent = ''; shown = null; sideCount = 0; navSample(); return; }
+    q('.psample').classList.add('busy');
+    try {
+      const doc = docs[+wide] ||= await desk.samplePdf(wide);
+      const settings = { ...M.clone(cur.Settings), Copies: 1 };
+      const item = { id: 'sample', path: doc.path, blank: false, password: null, pageCount: doc.pageCount, pageSizes: doc.pageSizes, settings };
+      const [est] = await eng('estimate', { items: [estItem(item)] });
+      if (gone()) return;
+      if (est.error) { stage.innerHTML = `<p class="hint">${esc(est.error)}</p>`; sampleSum.textContent = ''; shown = null; sideCount = 0; navSample(); return; }
+      sideCount = est.sides; sideAt = Math.max(0, Math.min(sideAt, sideCount - 1));
+      sampleSum.textContent = `${doc.pageCount} pages → ${plural(est.sheets, 'sheet')}${M.isTwoSided(settings) ? ', both sides' : ''}`;
+      const px = sidePx(), key = `${wide}|${sideAt}|${px}|${JSON.stringify(settings)}`;
+      if (!pics.has(key)) { if (pics.size > 40) pics.clear(); pics.set(key, await eng('preview', { item, side: sideAt, maxPx: px })); }
+      if (gone()) return;
+      const r = pics.get(key);
+      shown = { r, sheets: est.sheets };
+      stage.innerHTML = `<div class="ps-side"><img alt="" src="${r.png ? 'data:image/png;base64,' + r.png : 'data:image/svg+xml;base64,' + r.svg}"></div>`;
+      fitSample(); navSample();
+    } catch (e) {
+      if (!gone()) { stage.innerHTML = `<p class="hint">The sample could not be drawn: ${esc(e.message)}</p>`; sampleSum.textContent = ''; shown = null; navSample(); }
+    } finally { if (run === sampleRun) q('.psample')?.classList.remove('busy'); }
+  }
+  // pixels to ask the engine for: the side's long edge on screen, in steps so a resize does not draw again
+  const sidePx = () => { const need = Math.max(stage.clientWidth, stage.clientHeight) * ZOOMS[zoomAt] * Math.min(devicePixelRatio || 1, 2); return need <= 800 ? 800 : need <= 1400 ? 1400 : 2400; };
+  function fitSample() {
+    const el = stage.querySelector('.ps-side'); if (!el || !shown) return;
+    const cs = getComputedStyle(stage), aw = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), ah = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    const { widthIn: w, heightIn: h } = shown.r, f = Math.max(0.1, Math.min(aw / w, ah / h)) * ZOOMS[zoomAt];
+    el.style.width = Math.round(w * f) + 'px'; el.style.height = Math.round(h * f) + 'px';
+    stage.classList.toggle('zoomed', zoomAt > 0);
+  }
+  function navSample() {
+    const r = shown?.r;
+    q('#pmNum').textContent = r ? `Sheet ${r.sheet} of ${shown.sheets}${r.twoSided ? ` · ${r.isBack ? 'back' : 'front'}` : ''}` : '';
+    q('#pmPages').textContent = r ? `page${r.slots.length > 1 ? 's' : ''} ${r.slots.map(p => p ?? 'blank').join(' | ')}` : '';
+    q('#pmPrev').disabled = !r || sideAt <= 0; q('#pmNext').disabled = !r || sideAt >= sideCount - 1;
+    q('#pmOut').disabled = !r || zoomAt <= 0; q('#pmIn').disabled = !r || zoomAt >= ZOOMS.length - 1; q('#pmFit').disabled = !r || zoomAt === 0;
+    q('#pmFit').textContent = zoomAt ? Math.round(ZOOMS[zoomAt] * 100) + ' %' : 'Fit';
+  }
+  const turn = d => { const n = Math.max(0, Math.min(sideCount - 1, sideAt + d)); if (n !== sideAt) { sideAt = n; sampleSoon(0); } };
+  const zoomTo = z => { z = Math.max(0, Math.min(ZOOMS.length - 1, z)); if (z === zoomAt) return; zoomAt = z; fitSample(); navSample(); sampleSoon(0); };
+  q('#pmPrev').onclick = () => turn(-1); q('#pmNext').onclick = () => turn(1);
+  q('#pmOut').onclick = () => zoomTo(zoomAt - 1); q('#pmIn').onclick = () => zoomTo(zoomAt + 1); q('#pmFit').onclick = () => zoomTo(0);
+  q('.psample .seg').addEventListener('click', e => {
+    const b = e.target.closest('[data-wide]'); if (!b || +b.dataset.wide === +wide) return;
+    wide = b.dataset.wide === '1'; lsSet('sievphov-sample-wide', wide ? '1' : '0'); sideAt = 0; sampleSoon(0);
+  });
+  box.addEventListener('keydown', e => {   // ← → turn the sides, unless typing or on the tabs
+    if (e.defaultPrevented || !['ArrowLeft', 'ArrowRight'].includes(e.key) || e.target.closest('input, select, textarea, .ptabs, [contenteditable]')) return;
+    e.preventDefault(); turn(e.key === 'ArrowLeft' ? -1 : 1);
+  });
+  new ResizeObserver(fitSample).observe(stage);
   listEl2.addEventListener('click', e => { const li = e.target.closest('li[data-id]'); if (!li) return; cur = M.findPreset(draft, li.dataset.id); drawList(); drawEditor(); });
   box.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
@@ -1107,42 +1206,40 @@ async function capsAsync(name) {
   return state.caps.get(key) || null;
 }
 /**
- * Before printing: files whose tray is not on their printer get one of that printer's trays. Remembered answers are
- * used without asking (unless `ask`), the rest are asked in the Swap trays box. → the swaps made
- * [{ printer, tray, trays, items, to, asked }], or null when the box was cancelled (nothing changes then).
+ * Before printing: files whose tray is not on their printer get one of that printer's trays. The Swap trays box lists
+ * every such file — all of them, each time — with the tray chosen last time already picked (2026-10-29: remembered
+ * swaps made without asking left those files out of the box). → the swaps made [{ printer, tray, trays, items, to }],
+ * or null when the box was cancelled (nothing changes then).
  */
-async function swapTrays(list, { ask = false } = {}) {
+async function swapTrays(list) {
   await Promise.all([...new Set(list.map(it => printerOf(it.settings)))].filter(Boolean).map(capsAsync));
   const groups = M.missingTrays(list, n => state.caps.get(n) || null, defaultPrinter());
   if (!groups.length) return [];
-  for (const g of groups) { g.to = M.rememberedSwap(state.settings.TraySwaps, g.printer, g.tray, g.trays); g.asked = false; }
-  const toAsk = ask ? groups : groups.filter(g => g.to == null);
-  if (toAsk.length) {
-    const answer = await askTrays(toAsk);
-    if (!answer) return null;
-    toAsk.forEach((g, i) => { g.to = answer.to[i]; g.asked = true; });
-    if (answer.remember) {
-      for (const g of toAsk) state.settings.TraySwaps = M.rememberSwap(state.settings.TraySwaps, g.printer, g.tray, g.to);
-      saveSettings();
-    }
+  for (const g of groups) { g.to = M.rememberedSwap(state.settings.TraySwaps, g.printer, g.tray, g.trays, g.from); g.last = g.to != null; }
+  const answer = await askTrays(groups);
+  if (!answer) return null;
+  groups.forEach((g, i) => { g.to = answer.to[i]; });
+  if (answer.remember) {
+    for (const g of groups) state.settings.TraySwaps = M.rememberSwap(state.settings.TraySwaps, g.printer, g.tray, g.to, g.from);
+    saveSettings();
   }
-  setTrays(groups, 'to');
+  for (const g of groups) for (const it of g.items) { it.settings.Tray = g.to; it.settings.TrayPrinter = g.printer; M.markModified(it, state.lib); }
+  markDirty(); refresh({ estimate: false });
   return groups;
 }
-// gives each group's files its new tray ('to') or puts their own one back ('tray')
-function setTrays(groups, which) {
-  for (const g of groups) for (const it of g.items) { it.settings.Tray = g[which]; M.markModified(it, state.lib); }
-  markDirty(); refresh({ estimate: false });
-}
-/** The Swap trays box: one row per printer and missing tray. → { to: [tray per group], remember } or null. */
+/**
+ * The Swap trays box: one row per missing tray, "printer A · Tray 1 → printer B · [its trays]", with the files under it.
+ * → { to: [tray per group], remember } or null.
+ */
 function askTrays(groups) {
   return new Promise(res => {
-    const row = (g, i) => `<tr><td>${esc(g.printer)}</td><td>${esc(g.tray)}</td>
-      <td><select data-g="${i}" aria-label="Tray to use on ${esc(g.printer)} instead of ${esc(g.tray)}">${['', ...g.trays].map(t => `<option value="${esc(t)}"${t === (g.to ?? '') ? ' selected' : ''}>${esc(t || 'As in printer')}</option>`).join('')}</select></td>
-      <td class="n" title="${esc(g.items.map(it => it.name).join('\n'))}">${g.items.length}</td></tr>`;
+    const row = (g, i) => `<tr><td class="from"><b>${esc(g.from || 'Picked on another printer')}</b><span>${esc(g.tray)}</span></td><td class="arrow">→</td>
+      <td class="to"><b>${esc(g.printer)}</b><select data-g="${i}" aria-label="Tray to use on ${esc(g.printer)} instead of ${esc(g.tray)}">${['', ...g.trays].map(t => `<option value="${esc(t)}"${t === (g.to ?? '') ? ' selected' : ''}>${esc(t || 'As in printer')}</option>`).join('')}</select>${g.last ? '<small class="last">As last time</small>' : ''}</td>
+      <td class="n">${g.items.length}</td></tr>
+      <tr class="files"><td colspan="4">${g.items.map(it => esc(it.name)).join(' · ')}</td></tr>`;
     const one = groups.length === 1 && groups[0].items.length === 1;
-    const { box, close } = openBox('wide', `<h2>Swap trays</h2><p class="detail">${one ? 'This file prints' : 'These files print'} on a printer that does not have ${one ? 'its' : 'their'} tray. Pick the tray to use instead.</p>
-      <table class="est swap"><thead><tr><th>Printer</th><th>Their tray</th><th>Use this tray</th><th class="n">Files</th></tr></thead><tbody>${groups.map(row).join('')}</tbody></table>
+    const { box, close } = openBox('wide', `<h2>Swap trays</h2><p class="detail">${one ? 'This file prints' : 'These files print'} on a printer that does not have ${one ? 'its' : 'their'} tray. For each tray, pick the tray of the new printer to use instead.</p>
+      <table class="est swap"><thead><tr><th>From</th><th></th><th>To</th><th class="n">Files</th></tr></thead><tbody>${groups.map(row).join('')}</tbody></table>
       <label class="chk"><input type="checkbox" id="swRemember" checked>Remember for next time</label>
       <div class="acts"><button class="btn outline" data-r="0">Cancel</button><button class="btn primary" data-r="1">Continue</button></div>`,
       { onCancel: () => { close(); res(null); } });
@@ -1160,8 +1257,7 @@ async function printCmd() {
   if (!list.length) { toast('No files are ticked. Tick the files you want to print.'); return; }
   await runEstimate();
   // a tray the printer does not have: ask which of its trays to use (remembered answers are used by themselves)
-  let swaps = await swapTrays(list);
-  if (!swaps) return;
+  if (!(await swapTrays(list))) return;
   // only a question: what prints where; Repeat is next to the Print button, After printing in File › After Printing…
   const est = list.map(it => state.est.get(it.id) || {}), n = state.repeat;
   const byPrinter = M.byPrinter(list, est, defaultPrinter());
@@ -1172,23 +1268,8 @@ async function printCmd() {
     ? ` Afterwards the PDFs are ${state.settings.AfterPrint === 'MoveTo' ? 'moved' : 'copied'} to ${state.settings.AfterPrintFolder}.` : '';
   const detail = `About ${plural(sheets, 'sheet')} ${where}.${n > 1 ? ` The whole list ${n} times, one set after another.` : ''}${after}`;
   const problemsHtml = problems.length ? `<p class="detail">These files will stop with an error:</p><ul class="problems">${problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : '';
-  let go = false;
-  for (;;) {
-    const auto = swaps.filter(g => !g.asked);   // remembered swaps, made without asking: shown, and can be changed
-    const swapHtml = auto.length ? `<p class="detail">Trays swapped as you chose before:</p><ul class="names">${auto.map(g => `<li>${esc(`${g.tray} → ${g.to || 'As in printer'} on ${g.printer} (${plural(g.items.length, 'file')})`)}</li>`).join('')}</ul>` : '';
-    const buttons = [['Cancel', 'outline'], ...(auto.length ? [['Change trays…', 'outline']] : []), ['Print', 'primary']];
-    const r = await askChoice(`Print ${plural(list.length, 'file')}${n > 1 ? `, ${n} times` : ''}?`, buttons, { detail, html: swapHtml + problemsHtml });
-    if (auto.length && r === 1) {
-      setTrays(auto, 'tray');   // their own trays back, so the box asks about them again
-      const again = await swapTrays(auto.flatMap(g => g.items), { ask: true });
-      if (!again) setTrays(auto, 'to');   // cancelled: keep the remembered ones
-      else swaps = [...swaps.filter(g => !auto.includes(g)), ...again];
-      continue;
-    }
-    go = r === buttons.length - 1;
-    break;
-  }
-  if (!go) return;
+  const r = await askChoice(`Print ${plural(list.length, 'file')}${n > 1 ? `, ${n} times` : ''}?`, [['Cancel', 'outline'], ['Print', 'primary']], { detail, html: problemsHtml });
+  if (r !== 1) return;
   for (const it of list) { it.status = 'wait'; it.message = ''; }
   state.printing = { paused: false, ids: new Set(list.map(it => it.id)), fraction: 0, text: 'Starting…' };
   setPrintingUi();
@@ -1309,11 +1390,7 @@ function openPreview(start) {
     const res = await eng('estimate', { items: list.map(estItem) }).catch(() => null);
     list.forEach((it, i) => sidesOf.set(it.id, res?.[i] ?? { sides: 0, sheets: 0, pagesPrinted: 0, error: 'Could not count the sheets' }));
   }
-  const guessLandscape = it => {
-    const s = it.settings, p = it.pageSizes?.[0] || [595, 842];
-    return s.Layout === 'Booklet' || s.Orientation === 'Landscape' ||
-      (s.Orientation !== 'Portrait' && (s.Layout === 'PagesPerSheet' ? s.Columns > s.Rows : p[0] > p[1]));
-  };
+  const guessLandscape = it => M.sheetLandscape(it.settings, it.pageSizes?.[0]);
   const factLine = it => {
     const s = it.settings, e = sidesOf.get(it.id) || {};
     const prints = e.error ? e.error : it.blank ? plural(e.sheets || 0, 'blank sheet') : `${plural(e.sheets || 0, 'sheet')} · ${plural(e.pagesPrinted || 0, 'page')}${s.Copies > 1 ? ` (${plural(s.Copies, 'copy', 'copies')})` : ''}`;

@@ -9,6 +9,7 @@
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const M = require('./app/model.js');
 
 function createEngine({ exe, fake = false, log = () => {}, missing = 'The print engine is missing (Sievphov.Engine.exe). Reinstall Sievphov.' }) {
   const listeners = new Set();
@@ -136,11 +137,10 @@ function fakeSides(s, pages) {
   return { sides: out, twoSided };
 }
 
-// [column, row] of slot k on a side, as LayoutMath.Slots (reversed orders start on the right)
-function slotCell(s, k) {
-  const cols = s.Layout === 'Booklet' ? 2 : s.Layout === 'PagesPerSheet' ? Math.max(1, s.Columns || 1) : 1;
-  const rows = s.Layout === 'PagesPerSheet' ? Math.max(1, s.Rows || 1) : 1;
-  if (s.Layout !== 'PagesPerSheet') return [k % cols, Math.floor(k / cols)];
+// [column, row] of slot k on a side, as LayoutMath.Slots (the grid turns with the sheet; reversed orders start on the right)
+function slotCell(s, k, land = false) {
+  if (s.Layout !== 'PagesPerSheet') { const cols = s.Layout === 'Booklet' ? 2 : 1; return [k % cols, Math.floor(k / cols)]; }
+  const [cols, rows] = M.nUpGrid(s, land);
   const down = s.Order === 'DownThenAcross' || s.Order === 'DownThenAcrossReversed';
   let c = down ? Math.floor(k / rows) : k % cols;
   const r = down ? k % rows : Math.floor(k / cols);
@@ -166,16 +166,19 @@ function fakePreview(item, side, maxPx) {
   if (!sides.length) throw new Error('No pages selected (check the page range)');
   const i = Math.max(0, Math.min(sides.length - 1, side | 0)), sd = sides[i];
   const first = item.pageSizes[(pages[0] || 1) - 1] || [595, 842];
-  const landscape = s.Layout === 'Booklet' || s.Orientation === 'Landscape' ||
-    (s.Orientation !== 'Portrait' && (s.Layout === 'PagesPerSheet' ? (s.Columns || 1) > (s.Rows || 1) : first[0] > first[1]));
-  const W = landscape ? 1169 : 827, H = landscape ? 827 : 1169, m = 25;
-  const cols = s.Layout === 'Booklet' ? 2 : s.Layout === 'PagesPerSheet' ? Math.max(1, s.Columns || 1) : 1;
-  const rows = s.Layout === 'PagesPerSheet' ? Math.max(1, s.Rows || 1) : 1;
+  const landscape = M.sheetLandscape(s, first);
+  const W = landscape ? 1169 : 827, H = landscape ? 827 : 1169, m = 25, nUp = s.Layout === 'PagesPerSheet';
+  const [cols, rows] = nUp ? M.nUpGrid(s, landscape) : [s.Layout === 'Booklet' ? 2 : 1, 1];
   const gw = (W - 2 * m) / cols, gh = (H - 2 * m) / rows;
   let cells = '';
   sd.slots.forEach((p, k) => {
-    const [c, r] = slotCell(s, k), x = m + c * gw + 8, y = m + r * gh + 8, w = gw - 16, h = gh - 16;
+    const [c, r] = slotCell(s, k, landscape);
+    let x = m + c * gw + 8, y = m + r * gh + 8, w = gw - 16, h = gh - 16;
     if (p == null || item.blank) return;
+    if (nUp) {   // the page fitted in its cell, never turned (as the real engine)
+      const ps = item.pageSizes[p - 1] || first, f = Math.min(w / ps[0], h / ps[1]);
+      x += (w - ps[0] * f) / 2; y += (h - ps[1] * f) / 2; w = ps[0] * f; h = ps[1] * f;
+    }
     cells += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fafafa" stroke="#bbb"/>` +
       `<rect x="${x + 16}" y="${y + 16}" width="${w * 0.5}" height="14" fill="#ddd"/>` +
       Array.from({ length: 9 }, (_, j) => `<rect x="${x + 16}" y="${y + 50 + j * 26}" width="${w - 32 - (j % 3) * 30}" height="8" fill="#e6e6e6"/>`).join('') +

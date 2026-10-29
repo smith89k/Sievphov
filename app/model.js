@@ -12,7 +12,7 @@
 const DEFAULTS = Object.freeze({
   PrinterName: '', Copies: 1, Collate: 'ByDocument',
   Pages: 'All', PageRange: '', Reverse: false,
-  PaperSize: '', Tray: '', Orientation: 'Auto', Sides: 'OneSide',
+  PaperSize: '', Tray: '', TrayPrinter: '', Orientation: 'Auto', Sides: 'OneSide',
   Fit: 'Fit', ZoomPercent: 100, Alignment: 'Center',
   Grayscale: false, Dpi: 300,
   Layout: 'Normal', Columns: 2, Rows: 1, Order: 'AcrossThenDown', GapMm: 5, Borders: false, Binding: 'Left', BookletGapMm: 10, BookletSides: 'Both',
@@ -36,6 +36,7 @@ function normalize(s) {
       out[k] = typeof v === typeof d ? v : d;
     }
   }
+  if (out.Tray && !out.TrayPrinter) out.TrayPrinter = out.PrinterName;   // saved before trays knew their printer
   return out;
 }
 const defaults = () => normalize({});
@@ -70,6 +71,19 @@ function set(s, p, v) {
 
 // a booklet prints both sides unless only its fronts or only its backs are printed
 const isTwoSided = s => s.Layout === 'Booklet' ? s.BookletSides === 'Both' : s.Sides !== 'OneSide';
+// Pages per sheet as in Sastra PDF (LayoutMath.Grid / SheetIsLandscape, KEEP IN SYNC): the grid turns with the sheet,
+// upright = the smaller of Columns / Rows across; Auto = the way round that shows the first page (points) larger.
+const nUpGrid = (s, land) => { const a = Math.max(1, Math.min(s.Columns, s.Rows)), b = Math.max(1, Math.max(s.Columns, s.Rows)); return land ? [b, a] : [a, b]; };
+function sheetLandscape(s, page = [595, 842], sheet = [595.3, 841.9]) {
+  if (s.Layout === 'Booklet' || s.Orientation === 'Landscape') return true;
+  if (s.Orientation === 'Portrait') return false;
+  if (s.Layout !== 'PagesPerSheet') return page[0] > page[1];
+  const gap = (s.GapMm || 0) * 72 / 25.4, fit = land => {
+    const [c, r] = nUpGrid(s, land), w = land ? sheet[1] : sheet[0], h = land ? sheet[0] : sheet[1];
+    return Math.min((w - gap * (c - 1)) / c / page[0], (h - gap * (r - 1)) / r / page[1]);
+  };
+  return fit(true) > fit(false) + 1e-9;
+}
 
 /* ---------------------------------------------------------------- presets */
 let idCounter = 0;
@@ -127,18 +141,21 @@ function applyPreset(items, preset) {
 /** After a change by hand: the item keeps its preset and gets a * when it now differs from it. */
 function markModified(it, lib) {
   const p = findPreset(lib, it.presetId);
-  if (p) { it.presetName = p.Name; it.modified = !equal(it.settings, p.Settings); }
+  // TrayPrinter is only a note (where the tray was picked): it alone does not make a file "changed by hand"
+  if (p) { it.presetName = p.Name; it.modified = !equal({ ...it.settings, TrayPrinter: '' }, { ...p.Settings, TrayPrinter: '' }); }
   else { it.presetId = null; it.presetName = null; it.modified = true; }
 }
 
 /**
  * One setting changed in the panel: only that setting changes, on every selected item. Choosing a booklet also
- * switches on two-sided printing (flip on the short edge) and landscape, as booklets need.
+ * switches on two-sided printing (flip on the short edge) and landscape, as booklets need. A tray notes the printer
+ * it is picked on (TrayPrinter; `defaultPrinter` names "Default printer"), so Swap trays can say where it came from.
  */
-function setField(items, p, value, lib) {
+function setField(items, p, value, lib, defaultPrinter = '') {
   for (const it of items) {
     const wasBooklet = it.settings.Layout === 'Booklet';
     set(it.settings, p, value);
+    if (p === 'Tray') it.settings.TrayPrinter = it.settings.PrinterName || defaultPrinter;
     if (p === 'Layout' && value === 'Booklet' && !wasBooklet) {
       it.settings.Sides = 'ShortEdge';
       it.settings.Orientation = 'Landscape';
@@ -239,7 +256,8 @@ function byPrinter(items, estimates, defaultPrinter) {
 /* ---------------------------------------------------------------- tray swaps */
 
 /**
- * Files whose tray is not on the printer they print on, grouped: [{ printer, tray, trays, items }].
+ * Files whose tray is not on the printer they print on, grouped by the printer the tray came from, the tray and the
+ * printer: [{ from, tray, printer, trays, items }].
  * capsOf(name) → { trays, exists } or null (not known). Printers that are not installed are left to their own error.
  */
 function missingTrays(items, capsOf, defaultPrinter) {
@@ -249,26 +267,31 @@ function missingTrays(items, capsOf, defaultPrinter) {
     if (!tray || !printer) continue;
     const caps = capsOf(printer);
     if (!caps || !caps.exists || caps.trays.includes(tray)) continue;
-    const key = printer + ' ' + tray;
-    if (!groups.has(key)) groups.set(key, { printer, tray, trays: caps.trays.slice(), items: [] });
+    // from: the printer the tray was picked on ('' when not known, or when it is this printer)
+    const from = it.settings.TrayPrinter === printer ? '' : it.settings.TrayPrinter || '';
+    const key = [from, tray, printer].join('\u0000');
+    if (!groups.has(key)) groups.set(key, { from, tray, printer, trays: caps.trays.slice(), items: [] });
     groups.get(key).items.push(it);
   }
   return [...groups.values()];
 }
 /** The remembered tray for `from` on `printer`, when it is still there ('' = as in printer); else null. */
-function rememberedSwap(swaps, printer, from, trays) {
-  const m = (swaps || []).find(x => x.Printer === printer && x.From === from);
+// fromPrinter: the printer the tray came from; answers saved before trays knew their printer count for any printer
+function rememberedSwap(swaps, printer, from, trays, fromPrinter = '') {
+  const all = (swaps || []).filter(x => x.Printer === printer && x.From === from);
+  const m = all.find(x => (x.FromPrinter || '') === fromPrinter) || all.find(x => !x.FromPrinter);
   return m && (m.To === '' || trays.includes(m.To)) ? m.To : null;
 }
 /** Remembers an answer (one per printer and tray): a new array. */
-const rememberSwap = (swaps, printer, from, to) =>
-  [...(swaps || []).filter(x => !(x.Printer === printer && x.From === from)), { Printer: printer, From: from, To: to }];
+const rememberSwap = (swaps, printer, from, to, fromPrinter = '') =>
+  [...(swaps || []).filter(x => !(x.Printer === printer && x.From === from && (x.FromPrinter || '') === fromPrinter)),
+    { Printer: printer, From: from, FromPrinter: fromPrinter, To: to }];
 
 /** Western digits → Khmer digits ០-៩ (for showing numbers the way page numbers will print). */
 const khmerDigits = s => String(s).replace(/[0-9]/g, d => String.fromCharCode(0x17E0 + +d));
 
 const M = {
-  DEFAULTS, PER_SHEET, defaults, normalize, clone, equal, get, set, isTwoSided, newId,
+  DEFAULTS, PER_SHEET, defaults, normalize, clone, equal, get, set, isTwoSided, nUpGrid, sheetLandscape, newId,
   starterLibrary, readLibrary, findPreset, findPresetByName, defaultPreset, uniqueName, importInto,
   applyPreset, markModified, setField, setAll, resetToPreset, libraryChanged, presetLabel, shared, differsFromPreset,
   toJob, fromJob, jobRepeat, reportCsv, byPrinter, missingTrays, rememberedSwap, rememberSwap, khmerDigits

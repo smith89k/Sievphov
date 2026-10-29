@@ -179,6 +179,21 @@ test('booklet front or back only prints one-sided; old files read as both sides'
   assert.equal(M.isTwoSided(M.normalize({ Sides: 'LongEdge' })), true);
 });
 
+test('pages per sheet as Sastra PDF: the grid turns with the sheet, Auto shows pages largest', () => {
+  const two = M.normalize({ Layout: 'PagesPerSheet', Columns: 2, Rows: 1 }), six = M.normalize({ Layout: 'PagesPerSheet', Columns: 3, Rows: 2 });
+  assert.deepEqual(M.nUpGrid(two, false), [1, 2]);
+  assert.deepEqual(M.nUpGrid(two, true), [2, 1]);
+  assert.deepEqual(M.nUpGrid(six, false), [2, 3]);
+  assert.equal(M.sheetLandscape(two, [595, 842]), true);    // 2 upright pages side by side
+  assert.equal(M.sheetLandscape(two, [842, 595]), false);   // 2 wide pages stacked
+  assert.equal(M.sheetLandscape(six, [595, 842]), true);
+  assert.equal(M.sheetLandscape(six, [842, 595]), false);
+  assert.equal(M.sheetLandscape(M.normalize({ Layout: 'PagesPerSheet', Columns: 2, Rows: 2 }), [595, 842]), false);
+  assert.equal(M.sheetLandscape(M.normalize({ Layout: 'Booklet' }), [595, 842]), true);
+  assert.equal(M.sheetLandscape(M.normalize({}), [842, 595]), true);
+  assert.equal(M.sheetLandscape(M.normalize({ Orientation: 'Portrait' }), [842, 595]), false);
+});
+
 test('pages per sheet is Columns × Rows as one value', () => {
   const s = M.defaults();
   assert.equal(M.get(s, 'PerSheet'), '2x1');
@@ -203,6 +218,31 @@ test('missing trays are grouped by printer and tray', () => {
   assert.deepEqual(g[0].trays, ['Tray 1', 'Tray 2']);
 });
 
+test('a tray remembers its printer: Swap trays asks printer A tray → printer B tray', () => {
+  const caps = { 'Canon': { trays: ['Drawer 1', 'Drawer 2'], exists: true }, 'HP': { trays: ['Tray 1', 'Tray 2'], exists: true } };
+  const lib = { Presets: [], DefaultPresetId: null };
+  const a = item(1, { settings: M.normalize({ PrinterName: 'HP' }) }), b = item(2, { settings: M.normalize({ PrinterName: 'HP' }) });
+  M.setField([a], 'Tray', 'Tray 1', lib); M.setField([b], 'Tray', 'Tray 2', lib);
+  assert.equal(a.settings.TrayPrinter, 'HP', 'picking a tray notes its printer');
+  M.setField([a, b], 'PrinterName', 'Canon', lib);
+  assert.equal(a.settings.TrayPrinter, 'HP', 'changing the printer keeps it');
+  const g = M.missingTrays([a, b], n => caps[n], 'HP');
+  assert.deepEqual(g.map(x => [x.from, x.tray, x.printer, x.items.length]), [['HP', 'Tray 1', 'Canon', 1], ['HP', 'Tray 2', 'Canon', 1]]);
+  M.setField([a], 'Tray', 'Drawer 2', lib, 'HP');
+  assert.equal(a.settings.TrayPrinter, 'Canon');
+  const d = item(3, { settings: M.normalize({ Tray: 'Tray 1' }) });   // on the default printer
+  M.setField([d], 'Tray', 'Tray 2', lib, 'HP');
+  assert.equal(d.settings.TrayPrinter, 'HP', 'the default printer by name');
+  // presets and jobs saved before: the tray belongs to their printer
+  assert.equal(M.normalize({ PrinterName: 'Canon', Tray: 'Drawer 1' }).TrayPrinter, 'Canon');
+  assert.equal(M.normalize({ Tray: 'Drawer 1' }).TrayPrinter, '');
+  // the note alone does not make a file "changed by hand"
+  const pr = { Id: 'p', Name: 'P', Settings: M.normalize({}) }, lib2 = { Presets: [pr], DefaultPresetId: 'p' };
+  const f = item(4, { settings: M.clone(pr.Settings), presetId: 'p' });
+  M.setField([f], 'Tray', 'Tray 2', lib2, 'HP'); M.setField([f], 'Tray', '', lib2, 'HP');
+  assert.equal(f.modified, false);
+});
+
 test('remembered tray swaps', () => {
   let sw = M.rememberSwap([], 'HP M507', 'Tray 3', 'Tray 2');
   sw = M.rememberSwap(sw, 'HP M507', 'Tray 3', 'Tray 1');
@@ -212,4 +252,11 @@ test('remembered tray swaps', () => {
   assert.equal(M.rememberedSwap(M.rememberSwap([], 'P', 'T', ''), 'P', 'T', []), '', 'As in printer');
   assert.equal(M.rememberedSwap(sw, 'Other', 'Tray 3', ['Tray 1']), null);
   assert.equal(M.rememberedSwap(undefined, 'P', 'T', []), null);
+  // with the printer the tray came from: Tray 1 of the HP and Tray 1 of another printer can go to different drawers
+  let s2 = M.rememberSwap([], 'Canon', 'Tray 1', 'Drawer 2', 'HP');
+  s2 = M.rememberSwap(s2, 'Canon', 'Tray 1', 'Drawer 1', 'Epson');
+  assert.equal(s2.length, 2);
+  assert.equal(M.rememberedSwap(s2, 'Canon', 'Tray 1', ['Drawer 1', 'Drawer 2'], 'HP'), 'Drawer 2');
+  assert.equal(M.rememberedSwap(s2, 'Canon', 'Tray 1', ['Drawer 1', 'Drawer 2'], 'Epson'), 'Drawer 1');
+  assert.equal(M.rememberedSwap(sw, 'HP M507', 'Tray 3', ['Tray 1', 'Tray 2'], 'HP 4303'), 'Tray 1', 'an answer saved before (no printer) still counts');
 });

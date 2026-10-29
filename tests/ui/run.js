@@ -165,10 +165,49 @@ app.whenReady().then(async () => {
     check((await rowText(3)).includes('Both sides (long edge)') && (await rowText(3)).includes('2-sided'), 'Apply to selected gives the chosen preset to the selected file');
 
     // manage presets
+    await js(`localStorage.removeItem('sievphov-preset-tab'); localStorage.removeItem('sievphov-sample-wide')`);
     await click('#pManage');
     await waitFor(() => js(`!!document.querySelector('.modal.presets')`), 'presets box');
+    // the settings in tabs, one section at a time, opening on Layout
+    const shownSecs = () => js(`[...document.querySelectorAll('#pmEdit > .tsec')].filter(s => !s.hidden).map(s => s.dataset.sec).join()`);
+    check(await js(`document.querySelector('#pmTabs [aria-selected="true"]')?.dataset.sec`) === 'layout', 'Manage presets opens on the Layout tab');
+    check(await shownSecs() === 'layout', 'only the Layout section shows');
+    // the sample paper, as Sastra PDF's print screen: one side at a time, ‹ › to turn
+    const sampleText = () => js(`[document.getElementById('pmNum').textContent, document.getElementById('pmPages').textContent].join(' / ')`);
+    const pickField = (label, value) => js(`(() => { const s = [...document.querySelectorAll('#pmEdit .field')].find(f => f.querySelector('.flabel span')?.textContent === ${JSON.stringify(label)}).querySelector('select'); s.value = ${JSON.stringify(value)}; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await js(`document.querySelectorAll('#pmList li')[2].click()`);   // Book – booklet 2-sided
+    await waitFor(() => js(`document.getElementById('pmSampleSum').textContent === '8 pages → 2 sheets, both sides'`), 'booklet sample');
+    await waitFor(async () => (await sampleText()) === 'Sheet 1 of 2 · front / pages 8 | 1', 'booklet sample: sheet 1 front has pages 8 | 1');
+    check(await js(`document.querySelectorAll('#pmStage .ps-side img').length === 1 && document.getElementById('pmPrev').disabled`), 'the sample shows one side; ‹ is off on the first');
     await shot('06-manage-presets');
-    await key('Escape');
+    await click('#pmNext');
+    await waitFor(async () => (await sampleText()) === 'Sheet 1 of 2 · back / pages 2 | 7', '› turns to the back of sheet 1');
+    await click('#pmIn');
+    check(await js(`document.getElementById('pmFit').textContent === '150 %' && document.getElementById('pmStage').classList.contains('zoomed')`), '+ zooms in');
+    await click('#pmFit');
+    await pickField('Layout', 'PagesPerSheet'); await pickField('Pages per sheet', '2x2');
+    await waitFor(() => js(`document.getElementById('pmSampleSum').textContent === '8 pages → 1 sheet, both sides'`), '4 per sheet sample');
+    await waitFor(async () => (await sampleText()) === 'Sheet 1 of 1 · back / pages 5 | 6 | 7 | 8', 'a change redraws the sample and keeps the side: 4 per sheet');
+    await shot('06a-manage-presets-4-per-sheet');
+    // wide pages, 2 per sheet: stacked on an upright sheet, as Sastra PDF
+    await pickField('Pages per sheet', '2x1');
+    await pickField('Orientation', 'Auto');   // the Book preset is landscape on purpose
+    await click('.psample [data-wide="1"]');
+    await waitFor(async () => (await sampleText()) === 'Sheet 1 of 2 · front / pages 1 | 2', 'wide sample, 2 per sheet');
+    check(await js(`(() => { const e = document.querySelector('#pmStage .ps-side'); return e.offsetHeight > e.offsetWidth; })()`), '2 wide pages per sheet print on an upright sheet');
+    await click('.psample [data-wide="0"]');
+    await click('#pmTabs [data-sec="paper"]');
+    check(await shownSecs() === 'paper', 'the Paper & tray tab shows only that section');
+    await click('#pmTabs [data-sec="watermark"]');
+    check(await js(`document.querySelector('#pmTabs [data-sec="watermark"] .dot').hidden`) === true, 'no Watermark dot while it is off');
+    await js(`(() => { const c = document.querySelector('#pmEdit .tsec[data-sec="watermark"] input[type=checkbox]'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    check(await js(`document.querySelector('#pmTabs [data-sec="watermark"] .dot').hidden`) === false, 'the Watermark tab shows a dot when it is on');
+    await click('.modal.presets [data-a="cancel"]');   // the changes are not kept
+    await sleep(300);
+    await click('#pManage'); await waitFor(() => js(`!!document.querySelector('.modal.presets')`), 'presets box again');
+    check(await js(`document.querySelector('#pmTabs [aria-selected="true"]')?.dataset.sec`) === 'watermark', 'the box remembers the last tab');
+    await click('.modal.presets [data-a="cancel"]');
+    await sleep(300);
 
     // dark theme
     await click('#bTheme'); await click('#bTheme');   // system → light → dark
@@ -237,6 +276,7 @@ app.whenReady().then(async () => {
     await waitFor(() => js(`!!document.querySelector('.modal .est.swap')`), 'Swap trays box');
     const swapText = await js(`document.querySelector('.modal').innerText`);
     check(swapText.includes('Swap trays') && swapText.includes('HP LaserJet M507') && swapText.includes('Tray 3'), 'Swap trays names the printer and the missing tray');
+    check((await js(`document.querySelector('.modal .est.swap td.from').innerText`)).includes('HP LaserJet Pro 4303'), 'and the printer the tray came from (HP 4303 · Tray 3 → HP M507)');
     check(await js(`[...document.querySelectorAll('.modal .est.swap select option')].map(o => o.textContent).join('|')`) === 'As in printer|Automatically Select|Tray 1|Tray 2', "the box offers the HP M507's own trays");
     await js(`(() => { const s = document.querySelector('.modal .est.swap select'); s.value = 'Tray 2'; })()`);
     await shot('09c-swap-trays');
@@ -244,13 +284,16 @@ app.whenReady().then(async () => {
     await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'print question after Swap trays');
     check((await rowText(3)).includes('Tray 2'), 'the label now uses Tray 2');
     await click('.modal.ask [data-r="0"]'); await sleep(200);
-    // again with Tray 3: remembered, so no box; the question says so and offers Change trays…
+    // again with Tray 3: the box still lists the file, with last time's tray already picked
     await setSel('Printer', ''); await sleep(300); await setSel('Paper tray', 'Tray 3'); await sleep(200); await setSel('Printer', 'HP LaserJet M507'); await sleep(500);
     await key('P', ['control']);
-    await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'print question with a remembered swap');
-    check(!(await js(`!!document.querySelector('.modal .est.swap')`)) && (await js(`document.querySelector('.modal.ask').innerText`)).includes('Tray 3 → Tray 2 on HP LaserJet M507'), 'a remembered swap is made without asking, and listed');
-    check(await js(`[...document.querySelectorAll('.modal.ask .acts .btn')].map(b => b.textContent).join('|')`) === 'Cancel|Change trays…|Print', 'the question offers Change trays…');
-    await shot('09d-print-remembered-swap');
+    await waitFor(() => js(`!!document.querySelector('.modal .est.swap')`), 'Swap trays box with a remembered tray');
+    check(await js(`document.querySelector('.modal .est.swap select').value === 'Tray 2' && !!document.querySelector('.modal .est.swap .last')`), 'a remembered tray is picked already and marked As last time');
+    check((await js(`document.querySelector('.modal .est.swap tr.files').textContent`)).length > 0, 'the box names the files');
+    await shot('09d-swap-remembered');
+    await click('.modal [data-r="1"]');
+    await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'print question after the remembered swap');
+    check(await js(`[...document.querySelectorAll('.modal.ask .acts .btn')].map(b => b.textContent).join('|')`) === 'Cancel|Print', 'the print question is only Cancel / Print');
     await click('.modal.ask [data-r="0"]'); await sleep(200);
     await setSel('Printer', ''); await sleep(300); await setSel('Paper tray', ''); await sleep(200);
     check(!(await rowText(3)).includes('*'), 'the label is back to its preset');

@@ -82,6 +82,45 @@ public class LayoutMathTests
     }
 
     [Fact]
+    public void NUpGridTurnsWithTheSheet()
+    {
+        // as Sastra PDF: upright sheet = fewer columns than rows; landscape = the other way round
+        var two = new PrintSettings { Layout = LayoutMode.PagesPerSheet, Columns = 2, Rows = 1 };
+        Assert.Equal((1, 2), LayoutMath.Grid(two, false));
+        Assert.Equal((2, 1), LayoutMath.Grid(two, true));
+        var six = new PrintSettings { Layout = LayoutMode.PagesPerSheet, Columns = 3, Rows = 2 };
+        Assert.Equal((2, 3), LayoutMath.Grid(six, false));
+        Assert.Equal((3, 2), LayoutMath.Grid(six, true));
+        two.GapMm = 0;
+        var up = LayoutMath.Slots(new RectangleF(0, 0, 800, 1000), two);       // upright: stacked
+        Assert.Equal(new RectangleF(0, 500, 800, 500), up[1]);
+        var land = LayoutMath.Slots(new RectangleF(0, 0, 1000, 800), two);     // landscape: side by side
+        Assert.Equal(new RectangleF(500, 0, 500, 800), land[1]);
+    }
+
+    [Fact]
+    public void NUpAutoOrientationShowsPagesLargest()
+    {
+        var a4 = new SizeF(827, 1169);
+        var two = new PrintSettings { Layout = LayoutMode.PagesPerSheet, Columns = 2, Rows = 1 };
+        Assert.False(LayoutMath.SheetIsLandscape(two, new SizeF(842, 595), a4));   // 2 wide pages: stacked, upright
+        var four = new PrintSettings { Layout = LayoutMode.PagesPerSheet, Columns = 2, Rows = 2 };
+        Assert.False(LayoutMath.SheetIsLandscape(four, new SizeF(595, 842), a4));
+        Assert.True(LayoutMath.SheetIsLandscape(four, new SizeF(842, 595), a4));
+        var six = new PrintSettings { Layout = LayoutMode.PagesPerSheet, Columns = 3, Rows = 2 };
+        Assert.True(LayoutMath.SheetIsLandscape(six, new SizeF(595, 842), a4));
+        var nine = new PrintSettings { Layout = LayoutMode.PagesPerSheet, Columns = 3, Rows = 3 };
+        Assert.False(LayoutMath.SheetIsLandscape(nine, new SizeF(595, 842), a4));
+    }
+
+    [Fact]
+    public void NUpNeverTurnsPages()
+    {
+        var s = new PrintSettings { Layout = LayoutMode.PagesPerSheet };
+        Assert.False(LayoutMath.ShouldRotate(new SizeF(842, 595), Box, s));
+    }
+
+    [Fact]
     public void RotatesOnlyWhenShapesDiffer()
     {
         var s = new PrintSettings();

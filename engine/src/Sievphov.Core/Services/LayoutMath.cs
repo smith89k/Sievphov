@@ -22,14 +22,28 @@ public static class LayoutMath
 
         if (s.Layout == LayoutMode.PagesPerSheet)
         {
-            // Pick the orientation whose slots are closest in shape to the page.
-            double page = firstPage.Width / firstPage.Height;
-            double cols = Math.Max(1, s.Columns), rows = Math.Max(1, s.Rows);
-            double portraitSlot = (portraitSheet.Width / cols) / (portraitSheet.Height / rows);
-            double landscapeSlot = (portraitSheet.Height / cols) / (portraitSheet.Width / rows);
-            return Math.Abs(Math.Log(landscapeSlot / page)) < Math.Abs(Math.Log(portraitSlot / page));
+            // As Sastra PDF: the way round whose cells show the first page larger (upright when equal).
+            var page = PointsToUnits(firstPage);
+            float gap = MmToUnits(s.GapMm);
+            double Fit(bool land)
+            {
+                var (cols, rows) = Grid(s, land);
+                float w = land ? portraitSheet.Height : portraitSheet.Width, h = land ? portraitSheet.Width : portraitSheet.Height;
+                return Math.Min((w - gap * (cols - 1)) / cols / page.Width, (h - gap * (rows - 1)) / rows / page.Height);
+            }
+            return Fit(true) > Fit(false) + 1e-9;
         }
         return firstPage.Width > firstPage.Height;
+    }
+
+    /// <summary>
+    /// Pages per sheet as in Sastra PDF: the grid turns with the sheet. Upright: the smaller of Columns / Rows across,
+    /// landscape: the larger (2 → 1 × 2 upright, 2 × 1 landscape; 6 → 2 × 3, 3 × 2).
+    /// </summary>
+    public static (int Cols, int Rows) Grid(PrintSettings s, bool landscape)
+    {
+        int a = Math.Max(1, Math.Min(s.Columns, s.Rows)), b = Math.Max(1, Math.Max(s.Columns, s.Rows));
+        return landscape ? (b, a) : (a, b);
     }
 
     /// <summary>The places on one side where pages are drawn, in slot order.</summary>
@@ -49,7 +63,7 @@ public static class LayoutMath
             }
             case LayoutMode.PagesPerSheet:
             {
-                int cols = Math.Max(1, s.Columns), rows = Math.Max(1, s.Rows);
+                var (cols, rows) = Grid(s, area.Width > area.Height);
                 float gap = MmToUnits(s.GapMm);
                 float w = (area.Width - gap * (cols - 1)) / cols;
                 float h = (area.Height - gap * (rows - 1)) / rows;
@@ -69,10 +83,10 @@ public static class LayoutMath
         }
     }
 
-    /// <summary>Turn the page 90° when its shape does not match the slot (Auto orientation only).</summary>
+    /// <summary>Turn the page 90° when its shape does not match the slot (Auto orientation only; never in pages per sheet, as Sastra PDF).</summary>
     public static bool ShouldRotate(SizeF page, RectangleF slot, PrintSettings s)
     {
-        if (s.Orientation != OrientationMode.Auto) return false;
+        if (s.Orientation != OrientationMode.Auto || s.Layout == LayoutMode.PagesPerSheet) return false;
         bool pageWide = page.Width > page.Height * 1.02f;
         bool pageTall = page.Height > page.Width * 1.02f;
         bool slotWide = slot.Width > slot.Height;

@@ -83,4 +83,7 @@ test('stand-in: booklet fronts only, booklet reverse = sheets, reversed page ord
   assert.deepEqual(_fake.slotCell(M.normalize({ Layout: 'PagesPerSheet', Columns: 2, Rows: 2, Order: 'AcrossThenDownReversed' }), 0), [1, 0]);
   assert.deepEqual(_fake.slotCell(M.normalize({ Layout: 'PagesPerSheet', Columns: 2, Rows: 2, Order: 'DownThenAcrossReversed' }), 1), [1, 1]);
   assert.deepEqual(_fake.slotCell(M.normalize({ Layout: 'PagesPerSheet', Columns: 2, Rows: 2, Order: 'DownThenAcross' }), 2), [1, 0]);
+  const two = M.normalize({ Layout: 'PagesPerSheet', Columns: 2, Rows: 1 });   // the grid turns with the sheet
+  assert.deepEqual(_fake.slotCell(two, 1, false), [0, 1]);
+  assert.deepEqual(_fake.slotCell(two, 1, true), [1, 0]);
 });

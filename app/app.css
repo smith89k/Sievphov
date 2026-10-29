@@ -301,6 +301,13 @@ body.dropping .list::after{content:"Drop PDF files or folders to add them";posit
 /* Swap trays: a tray dropdown in each row */
 .est.swap select{width:100%;height:28px;border:1px solid var(--line-2);border-radius:5px;background:var(--field);padding:0 6px}
 .est.swap+.chk{margin-top:12px}
+.est.swap tr:has(+tr.files) td{border-bottom:0;padding-bottom:2px}
+.est.swap tr.files td{padding-top:0;color:var(--ink-2);font-size:11.5px;line-height:1.45}
+.est.swap .last{display:block;margin-top:3px;color:var(--accent);font-size:11px}
+.est.swap .from,.est.swap .to{width:44%;vertical-align:top}
+.est.swap .from b,.est.swap .to b{display:block;margin-bottom:4px;font-size:11.5px;font-weight:500;color:var(--ink-2)}
+.est.swap .from span{display:flex;align-items:center;height:28px;font-weight:600}
+.est.swap .arrow{width:24px;padding-top:28px;text-align:center;color:var(--accent);font-size:16px;vertical-align:top}
 .problems{margin:0;padding:8px 10px 8px 26px;max-height:140px;overflow:auto;background:var(--chrome);border:1px solid var(--line);border-radius:6px;color:var(--err);font-size:12.5px;user-select:text}
 /* boxes with a header line: report, presets, What's new */
 .modal.report,.modal.presets,.modal.notes{padding:0;gap:0}
@@ -313,10 +320,15 @@ body.dropping .list::after{content:"Drop PDF files or folders to add them";posit
 .report th{position:sticky;top:0;background:var(--surface);text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);padding:10px 10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 .report td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
 .report td.n{text-align:right;font-family:var(--mono);font-size:12px}
-.modal.presets{max-width:min(1040px,calc(100vw - 40px));height:min(760px,calc(100vh - 40px));display:grid;grid-template-columns:300px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
-.presets .head{grid-column:1/-1}
-.presets .plist{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line);background:var(--chrome)}
-.presets .plist ul{flex:1;overflow:auto;margin:0;padding:8px;list-style:none;display:flex;flex-direction:column;gap:2px}
+.modal.presets{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;box-shadow:none;display:grid;grid-template-columns:420px minmax(0,1fr) 280px;grid-template-rows:auto minmax(0,1fr) auto}
+.presets .head,.presets .acts{grid-column:1/-1}
+.presets .pmain{grid-column:1;grid-row:2}
+.presets .psample{grid-column:2;grid-row:2}
+.presets .plist{grid-column:3;grid-row:2}
+/* right: the presets, then the buttons for the chosen one, new, import / export */
+.presets .plist{display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line);background:var(--chrome)}
+.presets .plist h4{margin:0;padding:14px 16px 6px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.presets .plist ul{flex:1;overflow:auto;margin:0;padding:4px 8px 8px;list-style:none;display:flex;flex-direction:column;gap:2px}
 .presets .plist li{display:flex;align-items:center;gap:8px;min-height:38px;padding:0 10px;border-radius:7px;cursor:pointer}
 .presets .plist li:hover{background:var(--chrome-2)}
 .presets .plist li.on{background:var(--accent-soft);color:var(--accent);font-weight:500}
@@ -324,7 +336,7 @@ body.dropping .list::after{content:"Drop PDF files or folders to add them";posit
 .presets .plist li .kb{font-family:var(--mono);font-size:11px;color:var(--ink-3);font-weight:400}
 .presets .plist li .def{font-size:10.5px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-weight:500}
 .presets .ptools{display:flex;flex-direction:column;gap:8px;padding:10px;border-top:1px solid var(--line)}
-.presets .pnew{width:100%;height:34px;border:1px dashed var(--accent-line);background:var(--field);color:var(--accent);font-weight:500;font-size:12.5px}
+.presets .pnew{width:100%;height:34px;padding:0 12px;gap:6px;border:1px dashed var(--accent-line);background:var(--field);color:var(--accent);font-weight:500;font-size:12.5px}
 .presets .pnew:hover{border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
 .presets .pnew svg{width:16px;height:16px}
 .presets .picons{display:flex;align-items:center;gap:2px;padding:2px;border:1px solid var(--line-2);border-radius:7px;background:var(--field)}
@@ -334,11 +346,40 @@ body.dropping .list::after{content:"Drop PDF files or folders to add them";posit
 .presets .picons .btn svg{width:16px;height:16px}
 .presets .picons .sep{flex:none;width:1px;height:18px;background:var(--line-2)}
 .presets .pio{display:flex;gap:6px}
-.presets .pio .btn{flex:1;height:28px;gap:6px;color:var(--ink-2);font-size:12px}
+.presets .pio .btn{flex:1;height:30px;padding:0 10px;gap:6px;color:var(--ink-2);font-size:12px}
 .presets .pio .btn:hover{color:var(--accent);background:var(--chrome-2)}
 .presets .pio .btn svg{width:15px;height:15px}
-.presets .pedit{overflow:auto;min-height:0;background:var(--chrome)}
-.presets .acts{grid-column:1/-1}
+/* left: the name and the settings in tabs, one section at a time; middle: the sample */
+.presets .pmain{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;border-right:1px solid var(--line);background:var(--chrome)}
+.presets .pedit{flex:1;overflow:auto;min-height:0}
+.presets.empty .pname,.presets.empty .ptabs,.presets.empty .ps-stage,.presets.empty .ps-nav,.presets.empty .ps-head .seg{display:none}
+.tsec.tabbed{border-bottom:0}
+.tsec.tabbed>h3{display:none}
+.presets .ptabs{flex:none;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);padding:0 6px;border-bottom:1px solid var(--line)}
+.presets .ptab{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:54px;min-width:0;padding:0 2px;margin-bottom:-1px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--ink-2);font:inherit;font-size:11.5px;white-space:nowrap;cursor:pointer}
+.presets .ptab span{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.presets .ptab:hover{color:var(--ink)}
+.presets .ptab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:500}
+.presets .ptab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px 6px 0 0}
+.presets .ptab svg{width:18px;height:18px;color:var(--accent)}
+.presets .ptab .dot{position:absolute;top:9px;left:calc(50% + 9px);width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--chrome)}
+/* right: Sample paper, one side at a time, as it prints */
+.presets .psample{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--pasteboard)}
+.presets .ps-head{display:flex;align-items:center;gap:12px;padding:9px 16px;border-bottom:1px solid var(--line);background:var(--chrome);font-size:12.5px}
+.presets .ps-head .seg button{padding:0 10px}
+.presets #pmSampleSum{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+.presets .ps-stage{flex:1;min-height:0;overflow:hidden;display:grid;place-items:safe center;padding:20px;transition:opacity .15s}
+.presets .ps-stage.zoomed{overflow:auto}
+.presets .psample.busy .ps-stage{opacity:.55}
+.ps-side{background:#fff;box-shadow:var(--page-shadow)}
+.ps-side img{display:block;width:100%;height:100%}
+.presets .ps-nav{display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid var(--line);background:var(--chrome);font-size:12.5px}
+.presets .ps-nav .btn{height:30px;min-width:30px;padding:0 8px;justify-content:center}
+.presets .ps-nav .btn svg{width:16px;height:16px}
+.presets #pmNum{min-width:150px;text-align:center;font-weight:500}
+.presets .ps-pages{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+.presets .ps-zoom{display:flex;gap:4px;margin-left:auto}
+.presets #pmFit{min-width:58px}
 .presets .pname{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
 .presets .pname input{flex:1;height:34px;border:1px solid var(--line-2);border-radius:6px;background:var(--field);padding:0 10px;font-size:14px;font-weight:600}
 /* preview: fills the window under the title row, like Bohpum's print screen */

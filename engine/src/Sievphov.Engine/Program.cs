@@ -121,7 +121,7 @@ public static class Program
         int w = Math.Max(1, (int)(sheet.Width * scale)), h = Math.Max(1, (int)(sheet.Height * scale));
         int dpi = Math.Clamp((int)(scale * 100), 30, 300);
 
-        using var renderer = item.Blank ? null : new SheetRenderer(item, Bytes(item.FilePath), maxDpi: dpi);
+        using var renderer = item.Blank ? null : new SheetRenderer(item, Bytes(item.FilePath), maxDpi: dpi) { PageEdges = true };
         using var bmp = new Bitmap(w, h, PixelFormat.Format32bppPArgb);
         using (var g = Graphics.FromImage(bmp))
         {

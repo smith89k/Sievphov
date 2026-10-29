@@ -33,6 +33,9 @@ public sealed class SheetRenderer : IDisposable
 
     public int MaxDpi { get; }
 
+    /// <summary>Previews only: a thin grey line round each page in pages per sheet when Print page border is off.</summary>
+    public bool PageEdges { get; init; }
+
     public void DrawSide(Graphics g, RectangleF printable, SheetSide side)
     {
         var slots = LayoutMath.Slots(printable, _s);
@@ -40,15 +43,17 @@ public sealed class SheetRenderer : IDisposable
         {
             var slot = slots[i];
             if (side.Slots[i] is not int page || page < 1 || page > _item.PageSizes.Count) continue;
-            DrawPage(g, slot, page, LayoutMath.SlotAlignment(_s, i));
+            var shown = DrawPage(g, slot, page, LayoutMath.SlotAlignment(_s, i));
 
-            if (_s.Layout == LayoutMode.PagesPerSheet && _s.Borders)
-                using (var pen = new Pen(Color.Black, 1f))
-                    g.DrawRectangle(pen, slot.X + 0.5f, slot.Y + 0.5f, slot.Width - 1, slot.Height - 1);
+            // the border goes round the page itself, as Sastra PDF; width 0 = one screen pixel
+            if (_s.Layout == LayoutMode.PagesPerSheet && (_s.Borders || PageEdges))
+                using (var pen = _s.Borders ? new Pen(Color.Black, 1f) : new Pen(Color.FromArgb(160, 160, 160), 0f))
+                    g.DrawRectangle(pen, shown.X, shown.Y, shown.Width, shown.Height);
         }
     }
 
-    private void DrawPage(Graphics g, RectangleF slot, int page, Align9 align)
+    /// <summary>Draws the page in its slot → the part of the page that shows.</summary>
+    private RectangleF DrawPage(Graphics g, RectangleF slot, int page, Align9 align)
     {
         var sizePt = _item.PageSizes[page - 1];
         var size = LayoutMath.PointsToUnits(sizePt);
@@ -71,6 +76,7 @@ public sealed class SheetRenderer : IDisposable
 
         var visible = RectangleF.Intersect(rect, slot);
         DrawStamps(g, visible, page);
+        return visible;
     }
 
     private void DrawStamps(Graphics g, RectangleF page, int pdfPage)
