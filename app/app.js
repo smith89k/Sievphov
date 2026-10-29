@@ -997,6 +997,7 @@ function openPresetManager(selectId) {
       </div>
       <div class="pio"><button class="btn" data-a="imp" title="Add presets from a .svpreset file">${svg('import')}<span>Import…</span></button><button class="btn" data-a="exp" title="Save all presets to a file, to copy them to another PC">${svg('export')}<span>Export…</span></button></div></div></div>
     <div class="pedit" id="pmEdit"></div>
+    <div class="psample"><div class="ps-head"><b>Sample paper</b><span id="pmSampleSum"></span></div><div class="ps-body" id="pmSample"></div></div>
     <div class="acts"><span class="hint" style="margin-right:auto;color:var(--muted);font-size:12px">The default preset is given to files you add. Ctrl+1 … Ctrl+9 apply the first nine.</span>
       <button class="btn outline" data-a="cancel">Cancel</button><button class="btn primary" data-a="save">Save presets</button></div>`,
     { onCancel: () => close() });
@@ -1018,7 +1019,35 @@ function openPresetManager(selectId) {
     input.addEventListener('change', () => { const v = input.value.trim(); if (v) cur.Name = M.uniqueName(draft, v, cur); input.value = cur.Name; drawList(); });
     editEl.appendChild(name);
     const holder = { get settings() { return cur.Settings; } };
-    ed = buildEditor(editEl, { items: () => [holder], lib: null, set(path, value) { M.setField([{ settings: cur.Settings, presetId: null }], path, value, draft); ed.sync(); drawList(); } }, { folded: false });
+    ed = buildEditor(editEl, { items: () => [holder], lib: null, set(path, value) { M.setField([{ settings: cur.Settings, presetId: null }], path, value, draft); ed.sync(); drawList(); sampleSoon(); } }, { folded: false });
+    sampleSoon(0);
+  }
+  // Sample paper: 8 made-up numbered pages with the chosen preset's settings, drawn by the engine as they print
+  const sampleEl = box.querySelector('#pmSample'), sampleSum = box.querySelector('#pmSampleSum');
+  let sampleT = 0, sampleRun = 0, sampleDoc = null;
+  function sampleSoon(ms = 300) { clearTimeout(sampleT); sampleT = setTimeout(drawSample, ms); }
+  async function drawSample() {
+    const run = ++sampleRun, gone = () => run !== sampleRun || !box.isConnected;
+    if (!cur) { sampleEl.innerHTML = ''; sampleSum.textContent = ''; return; }
+    box.querySelector('.psample').classList.add('busy');
+    try {
+      sampleDoc = sampleDoc || await desk.samplePdf();
+      const item = { id: 'sample', path: sampleDoc.path, blank: false, password: null, pageCount: sampleDoc.pageCount, pageSizes: sampleDoc.pageSizes, settings: M.clone(cur.Settings) };
+      const [est] = await eng('estimate', { items: [estItem(item)] });
+      if (gone()) return;
+      if (est.error) { sampleEl.innerHTML = `<p class="hint">${esc(est.error)}</p>`; sampleSum.textContent = ''; return; }
+      const sides = await Promise.all(Array.from({ length: est.sides }, (_, i) => eng('preview', { item, side: i, maxPx: 420 })));
+      if (gone()) return;
+      const twoSided = sides[0]?.twoSided, sheets = twoSided ? new Set(sides.map(r => r.sheet)).size : sides.length;
+      sampleSum.textContent = `${sampleDoc.pageCount} pages → ${plural(sheets, 'sheet')}${twoSided ? ', both sides' : ''}`;
+      const img = r => `<div class="ps-side${r.widthIn > r.heightIn ? ' land' : ''}"><img alt="" src="${r.png ? 'data:image/png;base64,' + r.png : 'data:image/svg+xml;base64,' + r.svg}"></div>`;
+      const pages = r => r.slots.map(p => p ?? 'blank').join(' | ');
+      const groups = [];
+      for (const r of sides) { const g = twoSided && groups.length && groups[groups.length - 1][0].sheet === r.sheet ? groups[groups.length - 1] : null; if (g) g.push(r); else groups.push([r]); }
+      sampleEl.innerHTML = groups.map(g => `<figure class="ps-sheet"><div class="pv-pair">${g.map(img).join('')}</div><figcaption>Sheet ${g[0].sheet}${g.map(r => twoSided ? ` · ${r.isBack ? 'back' : 'front'} ${pages(r)}` : ` · ${pages(r)}`).join('')}</figcaption></figure>`).join('');
+    } catch (e) {
+      if (!gone()) { sampleEl.innerHTML = `<p class="hint">The sample could not be drawn: ${esc(e.message)}</p>`; sampleSum.textContent = ''; }
+    } finally { if (run === sampleRun) box.querySelector('.psample')?.classList.remove('busy'); }
   }
   listEl2.addEventListener('click', e => { const li = e.target.closest('li[data-id]'); if (!li) return; cur = M.findPreset(draft, li.dataset.id); drawList(); drawEditor(); });
   box.addEventListener('click', async e => {

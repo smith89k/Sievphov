@@ -33,6 +33,7 @@
       "main.js",
       "preload.js",
       "engine.js",
+      "sample-pdf.js",
       "app/**/*",
       "build/icon.png",
       "package.json"

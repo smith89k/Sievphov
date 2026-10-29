@@ -167,8 +167,18 @@ app.whenReady().then(async () => {
     // manage presets
     await click('#pManage');
     await waitFor(() => js(`!!document.querySelector('.modal.presets')`), 'presets box');
+    // the sample paper: 8 numbered pages printed with the chosen preset
+    await js(`document.querySelectorAll('#pmList li')[2].click()`);   // Book – booklet 2-sided
+    await waitFor(() => js(`document.getElementById('pmSampleSum').textContent === '8 pages → 2 sheets, both sides'`), 'booklet sample');
+    check(await js(`document.querySelectorAll('#pmSample .ps-sheet').length === 2 && document.querySelectorAll('#pmSample .ps-side img').length === 4`), 'booklet sample: 2 sheets, front and back');
+    check((await js(`document.querySelector('#pmSample figcaption').textContent`)) === 'Sheet 1 · front 8 | 1 · back 2 | 7', 'booklet sample: sheet 1 has pages 8 | 1 and 2 | 7');
     await shot('06-manage-presets');
-    await key('Escape');
+    await js(`(() => { const s = [...document.querySelectorAll('#pmEdit .field')].find(f => f.querySelector('.flabel span')?.textContent === 'Layout').querySelector('select'); s.value = 'PagesPerSheet'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await js(`(() => { const s = [...document.querySelectorAll('#pmEdit .field')].find(f => f.querySelector('.flabel span')?.textContent === 'Pages per sheet').querySelector('select'); s.value = '2x2'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await waitFor(() => js(`document.getElementById('pmSampleSum').textContent === '8 pages → 1 sheet, both sides'`), '4 per sheet sample');
+    check((await js(`document.querySelector('#pmSample figcaption').textContent`)) === 'Sheet 1 · front 1 | 2 | 3 | 4 · back 5 | 6 | 7 | 8', 'a change redraws the sample: 4 per sheet');
+    await shot('06a-manage-presets-4-per-sheet');
+    await click('.modal.presets [data-a="cancel"]');   // the change is not kept
 
     // dark theme
     await click('#bTheme'); await click('#bTheme');   // system → light → dark
