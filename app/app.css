@@ -313,26 +313,36 @@ body.dropping .list::after{content:"Drop PDF files or folders to add them";posit
 .report th{position:sticky;top:0;background:var(--surface);text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);padding:10px 10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 .report td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
 .report td.n{text-align:right;font-family:var(--mono);font-size:12px}
-.modal.presets{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;box-shadow:none;display:grid;grid-template-columns:420px minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto}
-.presets .head,.presets .pbar,.presets .acts{grid-column:1/-1}
-/* the preset bar, as Sastra PDF's print screen: pick a preset, then its buttons */
-.presets .pbar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--chrome)}
-.presets .ppick{display:flex;align-items:center;gap:8px;flex:1 1 260px;min-width:0;max-width:460px;font-size:12px;color:var(--ink-2)}
-.presets .ppick select{flex:1;min-width:0;height:34px;border:1px solid var(--line-2);border-radius:6px;background:var(--field);color:var(--ink);padding:0 8px;font:inherit;font-size:13px;font-weight:600}
-.presets .pnew{margin-left:auto;height:34px;padding:0 12px;gap:6px;border:1px dashed var(--accent-line);background:var(--field);color:var(--accent);font-weight:500;font-size:12.5px}
+.modal.presets{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;box-shadow:none;display:grid;grid-template-columns:420px minmax(0,1fr) 280px;grid-template-rows:auto minmax(0,1fr) auto}
+.presets .head,.presets .acts{grid-column:1/-1}
+.presets .pmain{grid-column:1;grid-row:2}
+.presets .psample{grid-column:2;grid-row:2}
+.presets .plist{grid-column:3;grid-row:2}
+/* right: the presets, then the buttons for the chosen one, new, import / export */
+.presets .plist{display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line);background:var(--chrome)}
+.presets .plist h4{margin:0;padding:14px 16px 6px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.presets .plist ul{flex:1;overflow:auto;margin:0;padding:4px 8px 8px;list-style:none;display:flex;flex-direction:column;gap:2px}
+.presets .plist li{display:flex;align-items:center;gap:8px;min-height:38px;padding:0 10px;border-radius:7px;cursor:pointer}
+.presets .plist li:hover{background:var(--chrome-2)}
+.presets .plist li.on{background:var(--accent-soft);color:var(--accent);font-weight:500}
+.presets .plist li .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.presets .plist li .kb{font-family:var(--mono);font-size:11px;color:var(--ink-3);font-weight:400}
+.presets .plist li .def{font-size:10.5px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-weight:500}
+.presets .ptools{display:flex;flex-direction:column;gap:8px;padding:10px;border-top:1px solid var(--line)}
+.presets .pnew{width:100%;height:34px;padding:0 12px;gap:6px;border:1px dashed var(--accent-line);background:var(--field);color:var(--accent);font-weight:500;font-size:12.5px}
 .presets .pnew:hover{border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
 .presets .pnew svg{width:16px;height:16px}
 .presets .picons{display:flex;align-items:center;gap:2px;padding:2px;border:1px solid var(--line-2);border-radius:7px;background:var(--field)}
-.presets .picons .btn{width:34px;height:28px;min-width:0;padding:0;color:var(--ink-2)}
+.presets .picons .btn{flex:1;height:30px;min-width:0;padding:0;color:var(--ink-2)}
 .presets .picons .btn:hover{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
 .presets .picons .btn.danger:hover{background:color-mix(in srgb,var(--err) 10%,transparent);color:var(--err)}
 .presets .picons .btn svg{width:16px;height:16px}
 .presets .picons .sep{flex:none;width:1px;height:18px;background:var(--line-2)}
 .presets .pio{display:flex;gap:6px}
-.presets .pio .btn{height:30px;padding:0 10px;gap:6px;color:var(--ink-2);font-size:12px}
+.presets .pio .btn{flex:1;height:30px;padding:0 10px;gap:6px;color:var(--ink-2);font-size:12px}
 .presets .pio .btn:hover{color:var(--accent);background:var(--chrome-2)}
 .presets .pio .btn svg{width:15px;height:15px}
-/* left: the name and the settings in tabs, one section at a time */
+/* left: the name and the settings in tabs, one section at a time; middle: the sample */
 .presets .pmain{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;border-right:1px solid var(--line);background:var(--chrome)}
 .presets .pedit{flex:1;overflow:auto;min-height:0}
 .presets.empty .pname,.presets.empty .ptabs,.presets.empty .ps-stage,.presets.empty .ps-nav,.presets.empty .ps-head .seg{display:none}

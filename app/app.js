@@ -1006,9 +1006,10 @@ function openPresetManager(selectId) {
   if (state.printing) { toast('Presets can be changed when printing has finished.'); return; }
   const draft = M.clone(state.lib);
   let cur = M.findPreset(draft, selectId) || M.findPreset(draft, state.presetPick?.Id) || draft.Presets[0] || null;
-  // shaped like Sastra PDF's print screen: the preset on top, its settings on the left, one big sample sheet on the right
+  // fills the window as Sastra PDF's print screen: settings on the left, one big sample sheet in the middle, the presets on the right
   const { box, close } = openBox('presets', `<div class="head"><h2>Manage presets</h2></div>
-    <div class="pbar"><label class="ppick"><span>Preset</span><select id="pmPick"></select></label>
+    <div class="plist"><h4>Presets</h4><ul id="pmList"></ul><div class="ptools">
+      <button class="btn pnew" data-a="new">${svg('plus')}<span>New preset</span></button>
       <div class="picons" role="toolbar" aria-label="The chosen preset">
         <button class="btn" data-a="dup" title="Duplicate" aria-label="Duplicate">${svg('copy')}</button>
         <button class="btn" data-a="def" title="Make it the default (given to files you add)" aria-label="Make default">${svg('star')}</button>
@@ -1018,8 +1019,7 @@ function openPresetManager(selectId) {
         <span class="sep"></span>
         <button class="btn danger" data-a="del" title="Delete" aria-label="Delete">${svg('trash')}</button>
       </div>
-      <button class="btn pnew" data-a="new">${svg('plus')}<span>New preset</span></button>
-      <div class="pio"><button class="btn" data-a="imp" title="Add presets from a .svpreset file">${svg('import')}<span>Import…</span></button><button class="btn" data-a="exp" title="Save all presets to a file, to copy them to another PC">${svg('export')}<span>Export…</span></button></div></div>
+      <div class="pio"><button class="btn" data-a="imp" title="Add presets from a .svpreset file">${svg('import')}<span>Import…</span></button><button class="btn" data-a="exp" title="Save all presets to a file, to copy them to another PC">${svg('export')}<span>Export…</span></button></div></div></div>
     <div class="pmain"><div class="pname" id="pmName"></div>
       <div class="ptabs" id="pmTabs" aria-label="Settings"></div>
       <div class="pedit" id="pmEdit"></div></div>
@@ -1033,12 +1033,11 @@ function openPresetManager(selectId) {
     <div class="acts"><span class="hint" style="margin-right:auto;color:var(--muted);font-size:12px">The default preset is given to files you add. Ctrl+1 … Ctrl+9 apply the first nine.</span>
       <button class="btn outline" data-a="cancel">Cancel</button><button class="btn primary" data-a="save">Save presets</button></div>`,
     { full: true, onCancel: () => close() });   // fills the window under the title row, as Sastra PDF's print screen
-  const pickEl = box.querySelector('#pmPick'), editEl = box.querySelector('#pmEdit'), nameEl = box.querySelector('#pmName'), tabsEl = box.querySelector('#pmTabs');
+  const listEl2 = box.querySelector('#pmList'), editEl = box.querySelector('#pmEdit'), nameEl = box.querySelector('#pmName'), tabsEl = box.querySelector('#pmTabs');
   let ed = null;
   function drawList() {
-    pickEl.innerHTML = draft.Presets.map((p, i) => `<option value="${esc(p.Id)}">${esc(p.Name)}${p.Id === draft.DefaultPresetId ? ' · Default' : ''}${i < 9 ? ` · Ctrl+${i + 1}` : ''}</option>`).join('') ||
-      '<option value="">No presets yet — click New preset</option>';
-    pickEl.value = cur?.Id ?? ''; pickEl.disabled = !draft.Presets.length;
+    listEl2.innerHTML = draft.Presets.map((p, i) => `<li data-id="${esc(p.Id)}" class="${cur && p.Id === cur.Id ? 'on' : ''}"><span class="nm">${esc(p.Name)}</span>${p.Id === draft.DefaultPresetId ? '<span class="def">Default</span>' : ''}<span class="kb">${i < 9 ? 'Ctrl+' + (i + 1) : ''}</span></li>`).join('') ||
+      '<li style="cursor:default;color:var(--muted)">No presets yet — click New preset.</li>';
     const i = cur ? draft.Presets.indexOf(cur) : -1, dis = (a, off) => { box.querySelector(`[data-a="${a}"]`).disabled = off; };
     dis('dup', !cur); dis('del', !cur); dis('up', i <= 0); dis('down', i < 0 || i >= draft.Presets.length - 1);
     dis('def', !cur || cur.Id === draft.DefaultPresetId); dis('exp', !draft.Presets.length);
@@ -1120,7 +1119,7 @@ function openPresetManager(selectId) {
     e.preventDefault(); turn(e.key === 'ArrowLeft' ? -1 : 1);
   });
   new ResizeObserver(fitSample).observe(stage);
-  pickEl.addEventListener('change', () => { cur = M.findPreset(draft, pickEl.value); drawList(); drawEditor(); });
+  listEl2.addEventListener('click', e => { const li = e.target.closest('li[data-id]'); if (!li) return; cur = M.findPreset(draft, li.dataset.id); drawList(); drawEditor(); });
   box.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
     const i = cur ? draft.Presets.indexOf(cur) : -1;

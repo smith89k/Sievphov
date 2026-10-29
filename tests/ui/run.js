@@ -175,7 +175,7 @@ app.whenReady().then(async () => {
     // the sample paper, as Sastra PDF's print screen: one side at a time, ‹ › to turn
     const sampleText = () => js(`[document.getElementById('pmNum').textContent, document.getElementById('pmPages').textContent].join(' / ')`);
     const pickField = (label, value) => js(`(() => { const s = [...document.querySelectorAll('#pmEdit .field')].find(f => f.querySelector('.flabel span')?.textContent === ${JSON.stringify(label)}).querySelector('select'); s.value = ${JSON.stringify(value)}; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
-    await js(`(() => { const s = document.getElementById('pmPick'); s.value = s.options[2].value; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);   // Book – booklet 2-sided
+    await js(`document.querySelectorAll('#pmList li')[2].click()`);   // Book – booklet 2-sided
     await waitFor(() => js(`document.getElementById('pmSampleSum').textContent === '8 pages → 2 sheets, both sides'`), 'booklet sample');
     await waitFor(async () => (await sampleText()) === 'Sheet 1 of 2 · front / pages 8 | 1', 'booklet sample: sheet 1 front has pages 8 | 1');
     check(await js(`document.querySelectorAll('#pmStage .ps-side img').length === 1 && document.getElementById('pmPrev').disabled`), 'the sample shows one side; ‹ is off on the first');
