@@ -282,13 +282,16 @@ app.whenReady().then(async () => {
     await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'print question after Swap trays');
     check((await rowText(3)).includes('Tray 2'), 'the label now uses Tray 2');
     await click('.modal.ask [data-r="0"]'); await sleep(200);
-    // again with Tray 3: remembered, so no box; the question says so and offers Change trays…
+    // again with Tray 3: the box still lists the file, with last time's tray already picked
     await setSel('Printer', ''); await sleep(300); await setSel('Paper tray', 'Tray 3'); await sleep(200); await setSel('Printer', 'HP LaserJet M507'); await sleep(500);
     await key('P', ['control']);
-    await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'print question with a remembered swap');
-    check(!(await js(`!!document.querySelector('.modal .est.swap')`)) && (await js(`document.querySelector('.modal.ask').innerText`)).includes('Tray 3 → Tray 2 on HP LaserJet M507'), 'a remembered swap is made without asking, and listed');
-    check(await js(`[...document.querySelectorAll('.modal.ask .acts .btn')].map(b => b.textContent).join('|')`) === 'Cancel|Change trays…|Print', 'the question offers Change trays…');
-    await shot('09d-print-remembered-swap');
+    await waitFor(() => js(`!!document.querySelector('.modal .est.swap')`), 'Swap trays box with a remembered tray');
+    check(await js(`document.querySelector('.modal .est.swap select').value === 'Tray 2' && !!document.querySelector('.modal .est.swap .last')`), 'a remembered tray is picked already and marked As last time');
+    check((await js(`document.querySelector('.modal .est.swap tr.files').textContent`)).length > 0, 'the box names the files');
+    await shot('09d-swap-remembered');
+    await click('.modal [data-r="1"]');
+    await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'print question after the remembered swap');
+    check(await js(`[...document.querySelectorAll('.modal.ask .acts .btn')].map(b => b.textContent).join('|')`) === 'Cancel|Print', 'the print question is only Cancel / Print');
     await click('.modal.ask [data-r="0"]'); await sleep(200);
     await setSel('Printer', ''); await sleep(300); await setSel('Paper tray', ''); await sleep(200);
     check(!(await rowText(3)).includes('*'), 'the label is back to its preset');

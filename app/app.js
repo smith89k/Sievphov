@@ -1206,39 +1206,34 @@ async function capsAsync(name) {
   return state.caps.get(key) || null;
 }
 /**
- * Before printing: files whose tray is not on their printer get one of that printer's trays. Remembered answers are
- * used without asking (unless `ask`), the rest are asked in the Swap trays box. → the swaps made
- * [{ printer, tray, trays, items, to, asked }], or null when the box was cancelled (nothing changes then).
+ * Before printing: files whose tray is not on their printer get one of that printer's trays. The Swap trays box lists
+ * every such file — all of them, each time — with the tray chosen last time already picked (2026-10-29: remembered
+ * swaps made without asking left those files out of the box). → the swaps made [{ printer, tray, trays, items, to }],
+ * or null when the box was cancelled (nothing changes then).
  */
-async function swapTrays(list, { ask = false } = {}) {
+async function swapTrays(list) {
   await Promise.all([...new Set(list.map(it => printerOf(it.settings)))].filter(Boolean).map(capsAsync));
   const groups = M.missingTrays(list, n => state.caps.get(n) || null, defaultPrinter());
   if (!groups.length) return [];
-  for (const g of groups) { g.to = M.rememberedSwap(state.settings.TraySwaps, g.printer, g.tray, g.trays); g.asked = false; }
-  const toAsk = ask ? groups : groups.filter(g => g.to == null);
-  if (toAsk.length) {
-    const answer = await askTrays(toAsk);
-    if (!answer) return null;
-    toAsk.forEach((g, i) => { g.to = answer.to[i]; g.asked = true; });
-    if (answer.remember) {
-      for (const g of toAsk) state.settings.TraySwaps = M.rememberSwap(state.settings.TraySwaps, g.printer, g.tray, g.to);
-      saveSettings();
-    }
+  for (const g of groups) { g.to = M.rememberedSwap(state.settings.TraySwaps, g.printer, g.tray, g.trays); g.last = g.to != null; }
+  const answer = await askTrays(groups);
+  if (!answer) return null;
+  groups.forEach((g, i) => { g.to = answer.to[i]; });
+  if (answer.remember) {
+    for (const g of groups) state.settings.TraySwaps = M.rememberSwap(state.settings.TraySwaps, g.printer, g.tray, g.to);
+    saveSettings();
   }
-  setTrays(groups, 'to');
-  return groups;
-}
-// gives each group's files its new tray ('to') or puts their own one back ('tray')
-function setTrays(groups, which) {
-  for (const g of groups) for (const it of g.items) { it.settings.Tray = g[which]; M.markModified(it, state.lib); }
+  for (const g of groups) for (const it of g.items) { it.settings.Tray = g.to; M.markModified(it, state.lib); }
   markDirty(); refresh({ estimate: false });
+  return groups;
 }
 /** The Swap trays box: one row per printer and missing tray. → { to: [tray per group], remember } or null. */
 function askTrays(groups) {
   return new Promise(res => {
     const row = (g, i) => `<tr><td>${esc(g.printer)}</td><td>${esc(g.tray)}</td>
-      <td><select data-g="${i}" aria-label="Tray to use on ${esc(g.printer)} instead of ${esc(g.tray)}">${['', ...g.trays].map(t => `<option value="${esc(t)}"${t === (g.to ?? '') ? ' selected' : ''}>${esc(t || 'As in printer')}</option>`).join('')}</select></td>
-      <td class="n" title="${esc(g.items.map(it => it.name).join('\n'))}">${g.items.length}</td></tr>`;
+      <td><select data-g="${i}" aria-label="Tray to use on ${esc(g.printer)} instead of ${esc(g.tray)}">${['', ...g.trays].map(t => `<option value="${esc(t)}"${t === (g.to ?? '') ? ' selected' : ''}>${esc(t || 'As in printer')}</option>`).join('')}</select>${g.last ? '<small class="last">As last time</small>' : ''}</td>
+      <td class="n">${g.items.length}</td></tr>
+      <tr class="files"><td colspan="4">${g.items.map(it => esc(it.name)).join(' · ')}</td></tr>`;
     const one = groups.length === 1 && groups[0].items.length === 1;
     const { box, close } = openBox('wide', `<h2>Swap trays</h2><p class="detail">${one ? 'This file prints' : 'These files print'} on a printer that does not have ${one ? 'its' : 'their'} tray. Pick the tray to use instead.</p>
       <table class="est swap"><thead><tr><th>Printer</th><th>Their tray</th><th>Use this tray</th><th class="n">Files</th></tr></thead><tbody>${groups.map(row).join('')}</tbody></table>
@@ -1259,8 +1254,7 @@ async function printCmd() {
   if (!list.length) { toast('No files are ticked. Tick the files you want to print.'); return; }
   await runEstimate();
   // a tray the printer does not have: ask which of its trays to use (remembered answers are used by themselves)
-  let swaps = await swapTrays(list);
-  if (!swaps) return;
+  if (!(await swapTrays(list))) return;
   // only a question: what prints where; Repeat is next to the Print button, After printing in File › After Printing…
   const est = list.map(it => state.est.get(it.id) || {}), n = state.repeat;
   const byPrinter = M.byPrinter(list, est, defaultPrinter());
@@ -1271,23 +1265,8 @@ async function printCmd() {
     ? ` Afterwards the PDFs are ${state.settings.AfterPrint === 'MoveTo' ? 'moved' : 'copied'} to ${state.settings.AfterPrintFolder}.` : '';
   const detail = `About ${plural(sheets, 'sheet')} ${where}.${n > 1 ? ` The whole list ${n} times, one set after another.` : ''}${after}`;
   const problemsHtml = problems.length ? `<p class="detail">These files will stop with an error:</p><ul class="problems">${problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : '';
-  let go = false;
-  for (;;) {
-    const auto = swaps.filter(g => !g.asked);   // remembered swaps, made without asking: shown, and can be changed
-    const swapHtml = auto.length ? `<p class="detail">Trays swapped as you chose before:</p><ul class="names">${auto.map(g => `<li>${esc(`${g.tray} → ${g.to || 'As in printer'} on ${g.printer} (${plural(g.items.length, 'file')})`)}</li>`).join('')}</ul>` : '';
-    const buttons = [['Cancel', 'outline'], ...(auto.length ? [['Change trays…', 'outline']] : []), ['Print', 'primary']];
-    const r = await askChoice(`Print ${plural(list.length, 'file')}${n > 1 ? `, ${n} times` : ''}?`, buttons, { detail, html: swapHtml + problemsHtml });
-    if (auto.length && r === 1) {
-      setTrays(auto, 'tray');   // their own trays back, so the box asks about them again
-      const again = await swapTrays(auto.flatMap(g => g.items), { ask: true });
-      if (!again) setTrays(auto, 'to');   // cancelled: keep the remembered ones
-      else swaps = [...swaps.filter(g => !auto.includes(g)), ...again];
-      continue;
-    }
-    go = r === buttons.length - 1;
-    break;
-  }
-  if (!go) return;
+  const r = await askChoice(`Print ${plural(list.length, 'file')}${n > 1 ? `, ${n} times` : ''}?`, [['Cancel', 'outline'], ['Print', 'primary']], { detail, html: problemsHtml });
+  if (r !== 1) return;
   for (const it of list) { it.status = 'wait'; it.message = ''; }
   state.printing = { paused: false, ids: new Set(list.map(it => it.id)), fraction: 0, text: 'Starting…' };
   setPrintingUi();

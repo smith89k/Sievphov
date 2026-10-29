@@ -301,6 +301,9 @@ body.dropping .list::after{content:"Drop PDF files or folders to add them";posit
 /* Swap trays: a tray dropdown in each row */
 .est.swap select{width:100%;height:28px;border:1px solid var(--line-2);border-radius:5px;background:var(--field);padding:0 6px}
 .est.swap+.chk{margin-top:12px}
+.est.swap tr:has(+tr.files) td{border-bottom:0;padding-bottom:2px}
+.est.swap tr.files td{padding-top:0;color:var(--ink-2);font-size:11.5px;line-height:1.45}
+.est.swap .last{display:block;margin-top:3px;color:var(--accent);font-size:11px}
 .problems{margin:0;padding:8px 10px 8px 26px;max-height:140px;overflow:auto;background:var(--chrome);border:1px solid var(--line);border-radius:6px;color:var(--err);font-size:12.5px;user-select:text}
 /* boxes with a header line: report, presets, What's new */
 .modal.report,.modal.presets,.modal.notes{padding:0;gap:0}
