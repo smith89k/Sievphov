@@ -15,7 +15,8 @@
     "test": "node --test \"tests/*.test.js\"",
     "test:ui": "electron tests/ui/run.js",
     "dist": "node scripts/check-notes.js && node scripts/build-engine.js && electron-builder --win nsis --publish never",
-    "dist:portable": "node scripts/check-notes.js && node scripts/build-engine.js && electron-builder --win portable --publish never"
+    "dist:portable": "node scripts/check-notes.js && node scripts/build-engine.js && electron-builder --win portable --publish never",
+    "dist:store": "node scripts/check-notes.js && node scripts/build-engine.js && electron-builder --win appx --publish never"
   },
   "devDependencies": {
     "electron": "44.7.2",
@@ -67,6 +68,20 @@
     },
     "portable": {
       "artifactName": "Sievphov-Portable-${version}.${ext}"
+    },
+    "appx": {
+      "artifactName": "Sievphov-Store-${version}.${ext}",
+      "applicationId": "Sievphov",
+      "displayName": "Sievphov",
+      "identityName": "smith89k.Sievphov",
+      "publisher": "CN=AAA3A883-09DC-4D02-89C9-CD2286F692F0",
+      "publisherDisplayName": "Taing Sunnguon",
+      "backgroundColor": "transparent",
+      "languages": [
+        "en-US"
+      ],
+      "minVersion": "10.0.17763.0",
+      "maxVersionTested": "10.0.26100.0"
     },
     "fileAssociations": [
       {
