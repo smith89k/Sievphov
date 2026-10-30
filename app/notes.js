@@ -9,6 +9,12 @@ const KINDS = Object.freeze(['new', 'improved', 'fixed', 'removed']);   // the w
 const N = (version, date, notes) => Object.freeze({ version, date, notes: Object.freeze(notes.map(([kind, text]) => Object.freeze({ kind, text }))) });
 
 const NOTES = Object.freeze([
+  N('2.3.0', '2026-10-30', [
+    ['new', 'Manage presets: Ctrl+click or Shift+click several presets and change a setting on all of them at once. Settings you do not touch stay as they are.'],
+    ['improved', 'Save presets keeps Manage presets open, so you can go on to the next preset. The button next to it says Close when everything is saved and Cancel when there are changes not saved yet.'],
+    ['improved', 'A broken file now stops the print: Print reads the files again first, and if one cannot be read (damaged, moved, deleted or still locked), nothing prints and a warning names it. Repair or replace it and press Print again, or remove it from the list.'],
+    ['fixed', 'Blank paper now comes out as a sheet between the files on printers that skip empty pages. Nothing shows on the sheet.']
+  ]),
   N('2.2.0', '2026-10-29', [
     ['new', 'Manage presets fills the window, like Sastra PDF\'s print screen: the settings on the left in tabs (Printer, Paper, Layout, Numbers, Watermark, Logo), a sample sheet in the middle printed with the chosen preset, and your presets on the right. Step through the sample sheets with ‹ ›, zoom with − Fit +, and switch between upright and wide sample pages.'],
     ['improved', 'Multiple pages per sheet places pages as Sastra PDF does: the grid turns with the sheet and pages are never turned sideways (2 wide pages per sheet now stack on an upright sheet). Print page border goes round each page.'],
