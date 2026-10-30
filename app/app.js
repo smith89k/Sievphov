@@ -702,10 +702,11 @@ function perSheetOpts(s) {
 
 /**
  * Builds the editor into `root`. ctx = { items() → the items (or presets) being edited, lib (for bold) | null,
- * set(path, value) }. Returns { sync() } to redraw values without rebuilding (keeps the focus while typing).
+ * noun ("files differ", or "presets differ"), set(path, value) }. Returns { sync() } to redraw values without
+ * rebuilding (keeps the focus while typing).
  */
 function buildEditor(root, ctx, { sections = SECTIONS, folded = true, tabs = null } = {}) {
-  const bound = [];
+  const bound = [], noun = ctx.noun || 'files';
   const foldedList = new Set(JSON.parse(lsGet('sievphov-folded') || '["watermark","logo"]'));
   const settingsOf = () => ctx.items().map(x => x.settings);
   // tabs = { bar, key, first }: one section at a time, picked in a tab bar (Manage presets)
@@ -761,7 +762,7 @@ function buildEditor(root, ctx, { sections = SECTIONS, folded = true, tabs = nul
     const wrap = document.createElement('div');
     wrap.className = f.kind === 'check' ? 'field chkf' : 'field';
     const label = f.kind === 'check' ? null : document.createElement('div');
-    if (label) { label.className = 'flabel'; label.innerHTML = `<span>${esc(f.label)}</span><span class="mixed" hidden>files differ</span>`; wrap.appendChild(label); }
+    if (label) { label.className = 'flabel'; label.innerHTML = `<span>${esc(f.label)}</span><span class="mixed" hidden>${noun} differ</span>`; wrap.appendChild(label); }
     let control, read, write, optKey = '';
     const parse = f.parse || (f.kind === 'number' || f.kind === 'copies' ? num : v => v);
     const commit = v => { if (f.validate?.(v)) return; ctx.set(f.path, parse(v)); };
@@ -777,7 +778,7 @@ function buildEditor(root, ctx, { sections = SECTIONS, folded = true, tabs = nul
             ? `<option value="${esc(o.v)}"${o.disabled ? ' disabled' : ''}><span class="ic">${svg(o.ic || 'doc')}</span><span class="t"><b>${esc(o.t)}</b><small>${esc(o.s || '')}</small></span></option>`
             : `<option value="${esc(o.v)}"${o.disabled ? ' disabled' : ''}>${esc(o.t)}</option>`;
           control.innerHTML = (f.kind === 'big' ? '<button><selectedcontent></selectedcontent></button>' : '') + opts.map(row).join('') +
-            (f.kind === 'big' ? `<option value="__mixed" disabled hidden><span class="ic">${svg('stack')}</span><span class="t"><b>Mixed</b><small>The selected files differ — pick one to set them all</small></span></option>` : '<option value="__mixed" disabled hidden>Mixed</option>');
+            (f.kind === 'big' ? `<option value="__mixed" disabled hidden><span class="ic">${svg('stack')}</span><span class="t"><b>Mixed</b><small>The selected ${noun} differ — pick one to set them all</small></span></option>` : '<option value="__mixed" disabled hidden>Mixed</option>');
         }
         control.value = mixed ? '__mixed' : String(v);
         control.classList.toggle('is-mixed', mixed);
@@ -1005,7 +1006,12 @@ function saveSettings() { desk?.storeWrite('settings', state.settings).catch(() 
 function openPresetManager(selectId) {
   if (state.printing) { toast('Presets can be changed when printing has finished.'); return; }
   const draft = M.clone(state.lib);
+  let savedJson = JSON.stringify(draft);   // Save presets keeps the box open: what is saved so far, for Close or Cancel
+  // cur = the preset last clicked (its sample shows); picked = the ids of all the chosen ones, cur among them (Ctrl+click, Shift+click)
   let cur = M.findPreset(draft, selectId) || M.findPreset(draft, state.presetPick?.Id) || draft.Presets[0] || null;
+  let picked = new Set(cur ? [cur.Id] : []), anchor = cur?.Id ?? null;
+  const pickOnly = p => { cur = p; picked = new Set(p ? [p.Id] : []); anchor = p?.Id ?? null; };
+  const chosen = () => cur ? [cur, ...draft.Presets.filter(p => p !== cur && picked.has(p.Id))] : [];
   // fills the window as Sastra PDF's print screen: settings on the left, one big sample sheet in the middle, the presets on the right
   const { box, close } = openBox('presets', `<div class="head"><h2>Manage presets</h2></div>
     <div class="plist"><h4>Presets</h4><ul id="pmList"></ul><div class="ptools">
@@ -1030,28 +1036,31 @@ function openPresetManager(selectId) {
       <div class="ps-nav"><button class="btn icon" id="pmPrev" title="Previous side (←)" aria-label="Previous side">${svg('left')}</button><span id="pmNum"></span>
         <button class="btn icon" id="pmNext" title="Next side (→)" aria-label="Next side">${svg('right')}</button><span class="ps-pages" id="pmPages"></span>
         <span class="ps-zoom" role="group" aria-label="Zoom"><button class="btn icon" id="pmOut" title="Smaller" aria-label="Smaller">−</button><button class="btn" id="pmFit" title="Show the whole sheet">Fit</button><button class="btn icon" id="pmIn" title="Larger" aria-label="Larger">+</button></span></div></div>
-    <div class="acts"><span class="hint" style="margin-right:auto;color:var(--muted);font-size:12px">The default preset is given to files you add. Ctrl+1 … Ctrl+9 apply the first nine.</span>
-      <button class="btn outline" data-a="cancel">Cancel</button><button class="btn primary" data-a="save">Save presets</button></div>`,
+    <div class="acts"><span class="hint" style="margin-right:auto;color:var(--muted);font-size:12px">Ctrl+click or Shift+click presets to change several together. The default preset is given to files you add. Ctrl+1 … Ctrl+9 apply the first nine.</span>
+      <button class="btn outline" data-a="cancel" title="Close this box. Changes not saved yet are dropped.">Close</button><button class="btn primary" data-a="save">Save presets</button></div>`,
     { full: true, onCancel: () => close() });   // fills the window under the title row, as Sastra PDF's print screen
   const listEl2 = box.querySelector('#pmList'), editEl = box.querySelector('#pmEdit'), nameEl = box.querySelector('#pmName'), tabsEl = box.querySelector('#pmTabs');
   let ed = null;
   function drawList() {
-    listEl2.innerHTML = draft.Presets.map((p, i) => `<li data-id="${esc(p.Id)}" class="${cur && p.Id === cur.Id ? 'on' : ''}"><span class="nm">${esc(p.Name)}</span>${p.Id === draft.DefaultPresetId ? '<span class="def">Default</span>' : ''}<span class="kb">${i < 9 ? 'Ctrl+' + (i + 1) : ''}</span></li>`).join('') ||
+    listEl2.innerHTML = draft.Presets.map((p, i) => `<li data-id="${esc(p.Id)}" class="${picked.has(p.Id) ? 'on' : ''}"><span class="nm">${esc(p.Name)}</span>${p.Id === draft.DefaultPresetId ? '<span class="def">Default</span>' : ''}<span class="kb">${i < 9 ? 'Ctrl+' + (i + 1) : ''}</span></li>`).join('') ||
       '<li style="cursor:default;color:var(--muted)">No presets yet — click New preset.</li>';
-    const i = cur ? draft.Presets.indexOf(cur) : -1, dis = (a, off) => { box.querySelector(`[data-a="${a}"]`).disabled = off; };
-    dis('dup', !cur); dis('del', !cur); dis('up', i <= 0); dis('down', i < 0 || i >= draft.Presets.length - 1);
-    dis('def', !cur || cur.Id === draft.DefaultPresetId); dis('exp', !draft.Presets.length);
+    const i = cur ? draft.Presets.indexOf(cur) : -1, many = picked.size > 1, dis = (a, off) => { box.querySelector(`[data-a="${a}"]`).disabled = off; };
+    dis('dup', !cur || many); dis('del', !cur); dis('up', many || i <= 0); dis('down', many || i < 0 || i >= draft.Presets.length - 1);
+    dis('def', many || !cur || cur.Id === draft.DefaultPresetId); dis('exp', !draft.Presets.length);
+    box.querySelector('[data-a="cancel"]').textContent = JSON.stringify(draft) === savedJson ? 'Close' : 'Cancel';
   }
   function drawEditor() {
     editEl.innerHTML = ''; nameEl.innerHTML = ''; tabsEl.innerHTML = '';
     box.classList.toggle('empty', !cur);
     sideAt = 0;
     if (!cur) { editEl.innerHTML = '<p class="hint" style="padding:20px">Click New preset, or Import… presets from a file.</p>'; sampleSoon(0); return; }
-    nameEl.innerHTML = `<input type="text" value="${esc(cur.Name)}" aria-label="Preset name">`;
-    const input = nameEl.querySelector('input');
-    input.addEventListener('change', () => { const v = input.value.trim(); if (v) cur.Name = M.uniqueName(draft, v, cur); input.value = cur.Name; drawList(); });
-    const holder = { get settings() { return cur.Settings; } };
-    ed = buildEditor(editEl, { items: () => [holder], lib: null, set(path, value) { M.setField([{ settings: cur.Settings, presetId: null }], path, value, draft, defaultPrinter()); ed.sync(); drawList(); sampleSoon(); } },
+    if (picked.size > 1) nameEl.innerHTML = `<span class="pmany"><b>${picked.size} presets</b><span>A change here goes to all of them. Settings you do not touch stay as they are.</span></span>`;
+    else {
+      nameEl.innerHTML = `<input type="text" value="${esc(cur.Name)}" aria-label="Preset name">`;
+      const input = nameEl.querySelector('input');
+      input.addEventListener('change', () => { const v = input.value.trim(); if (v) cur.Name = M.uniqueName(draft, v, cur); input.value = cur.Name; drawList(); });
+    }
+    ed = buildEditor(editEl, { items: () => chosen().map(p => ({ settings: p.Settings })), lib: null, noun: 'presets', set(path, value) { M.setField(chosen().map(p => ({ settings: p.Settings, presetId: null })), path, value, draft, defaultPrinter()); ed.sync(); drawList(); sampleSoon(); } },
       { folded: false, tabs: { bar: tabsEl, key: 'sievphov-preset-tab', first: 'layout',
         names: { printer: 'Printer', paper: 'Paper', layout: 'Layout', numbers: 'Numbers', watermark: 'Watermark', logo: 'Logo' } } });
     sampleSoon(0);
@@ -1119,17 +1128,33 @@ function openPresetManager(selectId) {
     e.preventDefault(); turn(e.key === 'ArrowLeft' ? -1 : 1);
   });
   new ResizeObserver(fitSample).observe(stage);
-  listEl2.addEventListener('click', e => { const li = e.target.closest('li[data-id]'); if (!li) return; cur = M.findPreset(draft, li.dataset.id); drawList(); drawEditor(); });
+  listEl2.addEventListener('click', e => {
+    const li = e.target.closest('li[data-id]'); if (!li) return;
+    const id = li.dataset.id, p = M.findPreset(draft, id), at = x => draft.Presets.findIndex(o => o.Id === x);
+    if (e.shiftKey && M.findPreset(draft, anchor)) {
+      const [a, b] = [at(anchor), at(id)].sort((x, y) => x - y), range = draft.Presets.slice(a, b + 1).map(o => o.Id);
+      picked = new Set(e.ctrlKey ? [...picked, ...range] : range); cur = p;
+    } else if (e.ctrlKey || e.metaKey) {
+      anchor = id;
+      if (!picked.has(id)) { picked.add(id); cur = p; }
+      else if (picked.size > 1) {   // one preset always stays chosen
+        picked.delete(id);
+        if (cur === p) cur = draft.Presets.find(o => picked.has(o.Id));
+      }
+    } else pickOnly(p);
+    drawList(); drawEditor();
+  });
   box.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
     const i = cur ? draft.Presets.indexOf(cur) : -1;
     if (a === 'new') { cur = { Id: M.newId(), Name: M.uniqueName(draft, 'New preset'), Settings: M.defaults() }; draft.Presets.push(cur); }
     if (a === 'dup' && cur) { const c = { Id: M.newId(), Name: M.uniqueName(draft, cur.Name + ' copy'), Settings: M.clone(cur.Settings) }; draft.Presets.splice(i + 1, 0, c); cur = c; }
     if (a === 'del' && cur) {
-      if (!(await askConfirm(`Delete the preset "${cur.Name}"?`, 'Delete', 'Files that use it keep their settings.'))) return;
-      draft.Presets.splice(i, 1);
-      if (draft.DefaultPresetId === cur.Id) draft.DefaultPresetId = draft.Presets[0]?.Id ?? null;
-      cur = draft.Presets[Math.min(i, draft.Presets.length - 1)] || null;
+      const gone = chosen(), first = Math.min(...gone.map(p => draft.Presets.indexOf(p)));
+      if (!(await askConfirm(gone.length > 1 ? `Delete these ${gone.length} presets?` : `Delete the preset "${cur.Name}"?`, 'Delete', `Files that use ${gone.length > 1 ? 'them' : 'it'} keep their settings.`))) return;
+      draft.Presets = draft.Presets.filter(p => !gone.includes(p));
+      if (gone.some(p => p.Id === draft.DefaultPresetId)) draft.DefaultPresetId = draft.Presets[0]?.Id ?? null;
+      cur = draft.Presets[Math.min(first, draft.Presets.length - 1)] || null;
     }
     if ((a === 'up' || a === 'down') && cur) { const j = i + (a === 'up' ? -1 : 1); if (j >= 0 && j < draft.Presets.length) { draft.Presets.splice(i, 1); draft.Presets.splice(j, 0, cur); } }
     if (a === 'def' && cur) draft.DefaultPresetId = cur.Id;
@@ -1140,15 +1165,18 @@ function openPresetManager(selectId) {
     }
     if (a === 'exp') { const p = await desk?.exportPresets({ Presets: draft.Presets }); if (p) toast(`${plural(draft.Presets.length, 'preset')} exported. Copy the file to another PC and use Import.`); return; }
     if (a === 'cancel') { close(); return; }
-    if (a === 'save') {
-      state.lib = draft;
+    if (a === 'save') {   // the box stays open for the next preset, so state.lib gets its own copy of the draft
+      state.lib = M.clone(draft);
       await savePresets();
       M.libraryChanged(state.items, state.lib);
-      close(); refresh(); buildPanel();
+      savedJson = JSON.stringify(draft);
+      drawList(); refresh(); buildPanel();
       toast('Presets saved. Files using them without changes follow the new settings.');
       return;
     }
-    drawList(); if (['new', 'dup', 'del', 'imp'].includes(a)) drawEditor();
+    const remade = ['new', 'dup', 'del', 'imp'].includes(a);
+    if (remade) pickOnly(cur);
+    drawList(); if (remade) drawEditor();
   });
   drawList(); drawEditor();
 }
@@ -1251,8 +1279,45 @@ function askTrays(groups) {
     box.querySelector('select[data-g]').focus();
   });
 }
+/**
+ * Before printing: reads again the files that will print and the ones that could not be read. A file fixed since then
+ * is ready again; one that broke since it was added (damaged, moved, deleted) is marked. → the rows that cannot be read.
+ */
+async function recheckFiles() {
+  const rows = state.items.filter(it => !it.blank && (it.checked || it.pageCount === 0));
+  const b = busy(), bad = [];
+  try {
+    for (const [i, it] of rows.entries()) {
+      b.update(`Checking ${i + 1} of ${rows.length}: ${it.name}`);
+      const wasBad = it.pageCount === 0;
+      try {
+        // a locked file asks for its password here: typing it is how that one gets fixed
+        const r = wasBad ? await openPdf(it.path, it) : await eng('open', { path: it.path, passwords: it.password ? [it.password] : state.settings.Passwords });
+        Object.assign(it, { pageCount: r.pageCount, pageSizes: r.pageSizes, password: r.password });
+        if (wasBad) Object.assign(it, { checked: true, status: 'wait', message: '' });
+      } catch (e) {
+        if (e.reason === 'engine') throw e;   // the engine is the problem, not the file
+        const locked = e.reason === 'password';
+        Object.assign(it, { pageCount: 0, pageSizes: [], checked: false, status: locked ? 'locked' : 'error', message: locked ? 'Locked with a password' : e.message });
+        bad.push(it);
+      }
+    }
+  } finally { b.done(); }
+  return bad;
+}
 async function printCmd() {
   if (state.printing) return;
+  let bad;
+  try { bad = await recheckFiles(); }
+  catch (e) { toast('Printing could not start: ' + e.message, true); return; }
+  refresh();
+  if (bad.length) {   // no partial print: a book with a file missing is worse than no book
+    selectOnly(bad.map(it => it.id));
+    await askChoice(bad.length === 1 ? 'Fix this file before printing' : `Fix these ${bad.length} files before printing`, [['OK', 'primary']], {
+      detail: 'Nothing was printed. Repair or replace the file, then press Print again. If you do not need it, remove it from the list with the Delete key.',
+      names: bad.map(it => `${it.name}: ${it.message}`) });
+    return;
+  }
   const list = ticked();
   if (!list.length) { toast('No files are ticked. Tick the files you want to print.'); return; }
   await runEstimate();

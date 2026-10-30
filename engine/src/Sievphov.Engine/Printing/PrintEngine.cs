@@ -200,6 +200,11 @@ public sealed class PrintEngine
                 g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
                 g.DrawImage(composed, printable);
             }
+            else if (renderer is null)
+            {
+                // Printers can skip a page with nothing on it: a white dot makes blank paper a real page, with no ink.
+                g.FillRectangle(Brushes.White, printable.X + printable.Width / 2, printable.Y + printable.Height / 2, 1, 1);
+            }
 
             next++;
             Progress?.Invoke(new PrintProgress(item.Id, "printing", $"{label}Side {next} of {sequence.Count}", next, sequence.Count,
