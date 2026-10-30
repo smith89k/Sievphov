@@ -209,6 +209,43 @@ app.whenReady().then(async () => {
     await click('.modal.presets [data-a="cancel"]');
     await sleep(300);
 
+    // Save presets keeps the box open; several presets (Ctrl+click, Shift+click) take one change together
+    const pickPreset = (i, mods = {}) => js(`document.querySelectorAll('#pmList li')[${i}].dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: ${!!mods.ctrl}, shiftKey: ${!!mods.shift} }))`);
+    const pickedCount = () => js(`document.querySelectorAll('#pmList li.on').length`);
+    const closeLabel = () => js(`document.querySelector('.modal.presets [data-a="cancel"]').textContent`);
+    const quality = v => click(`#pmEdit .tsec[data-sec="paper"] .seg button[data-v="${v}"]`);
+    const savedDpis = () => JSON.parse(fs.readFileSync(path.join(user, 'presets.json'), 'utf8')).Presets.map(p => p.Settings.Dpi).join();
+    await click('#pManage'); await waitFor(() => js(`!!document.querySelector('.modal.presets')`), 'presets box for several');
+    check(await closeLabel() === 'Close', 'nothing changed yet: the box offers Close');
+    await click('#pmTabs [data-sec="paper"]');
+    await pickPreset(1); await pickPreset(2, { ctrl: true });
+    check(await pickedCount() === 2, 'Ctrl+click picks a second preset');
+    check(await js(`!document.querySelector('#pmName input') && document.getElementById('pmName').textContent.includes('2 presets')`), 'two presets picked: the name box says so instead of one name');
+    check(await js(`['dup', 'def', 'up', 'down'].every(a => document.querySelector('.modal.presets [data-a="' + a + '"]').disabled)`), 'buttons for one preset are off while two are picked');
+    await quality(600);
+    check(await closeLabel() === 'Cancel', 'an unsaved change: the box offers Cancel');
+    await click('.modal.presets [data-a="save"]');
+    await waitFor(async () => (await js(`!!document.querySelector('.modal.presets')`)) && (await closeLabel()) === 'Close', 'saved, box still open');
+    check(await pickedCount() === 2, 'Save presets keeps the box open with the same presets picked');
+    check(savedDpis() === '300,600,600', 'the change went to the two picked presets and no other');
+    const savedNow = JSON.parse(fs.readFileSync(path.join(user, 'presets.json'), 'utf8')).Presets;
+    check(savedNow[1].Settings.Layout === 'Normal' && savedNow[2].Settings.Layout === 'Booklet', 'their other settings stay their own');
+    await pickPreset(0); await pickPreset(2, { shift: true });
+    check(await pickedCount() === 3, 'Shift+click picks the range');
+    check(await js(`[...document.querySelectorAll('#pmEdit .tsec[data-sec="paper"] .field')].some(f => !f.querySelector('.mixed')?.hidden && f.querySelector('.mixed')?.textContent === 'presets differ')`), 'a setting that differs says presets differ');
+    await shot('06b-manage-several-presets');
+    await quality(300);
+    await click('.modal.presets [data-a="save"]');
+    await waitFor(() => savedDpis() === '300,300,300', 'all three saved');
+    await pickPreset(0); await quality(150);   // saved earlier, changed now, then cancelled: the saved presets stay
+    await click('.modal.presets [data-a="cancel"]');
+    await sleep(300);
+    await click('#pManage'); await waitFor(() => js(`!!document.querySelector('.modal.presets')`), 'presets box after cancel');
+    await pickPreset(0);
+    check(await js(`document.querySelector('#pmEdit .tsec[data-sec="paper"] .seg button[data-v="300"]').classList.contains('on')`), 'Cancel after a save drops only what was not saved');
+    await click('.modal.presets [data-a="cancel"]');
+    await sleep(300);
+
     // dark theme
     await click('#bTheme'); await click('#bTheme');   // system → light → dark
     check(await js(`document.documentElement.dataset.theme`) === 'dark', 'theme button reaches dark');
