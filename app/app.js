@@ -1251,8 +1251,45 @@ function askTrays(groups) {
     box.querySelector('select[data-g]').focus();
   });
 }
+/**
+ * Before printing: reads again the files that will print and the ones that could not be read. A file fixed since then
+ * is ready again; one that broke since it was added (damaged, moved, deleted) is marked. → the rows that cannot be read.
+ */
+async function recheckFiles() {
+  const rows = state.items.filter(it => !it.blank && (it.checked || it.pageCount === 0));
+  const b = busy(), bad = [];
+  try {
+    for (const [i, it] of rows.entries()) {
+      b.update(`Checking ${i + 1} of ${rows.length}: ${it.name}`);
+      const wasBad = it.pageCount === 0;
+      try {
+        // a locked file asks for its password here: typing it is how that one gets fixed
+        const r = wasBad ? await openPdf(it.path, it) : await eng('open', { path: it.path, passwords: it.password ? [it.password] : state.settings.Passwords });
+        Object.assign(it, { pageCount: r.pageCount, pageSizes: r.pageSizes, password: r.password });
+        if (wasBad) Object.assign(it, { checked: true, status: 'wait', message: '' });
+      } catch (e) {
+        if (e.reason === 'engine') throw e;   // the engine is the problem, not the file
+        const locked = e.reason === 'password';
+        Object.assign(it, { pageCount: 0, pageSizes: [], checked: false, status: locked ? 'locked' : 'error', message: locked ? 'Locked with a password' : e.message });
+        bad.push(it);
+      }
+    }
+  } finally { b.done(); }
+  return bad;
+}
 async function printCmd() {
   if (state.printing) return;
+  let bad;
+  try { bad = await recheckFiles(); }
+  catch (e) { toast('Printing could not start: ' + e.message, true); return; }
+  refresh();
+  if (bad.length) {   // no partial print: a book with a file missing is worse than no book
+    selectOnly(bad.map(it => it.id));
+    await askChoice(bad.length === 1 ? 'Fix this file before printing' : `Fix these ${bad.length} files before printing`, [['OK', 'primary']], {
+      detail: 'Nothing was printed. Repair or replace the file, then press Print again. If you do not need it, remove it from the list with the Delete key.',
+      names: bad.map(it => `${it.name}: ${it.message}`) });
+    return;
+  }
   const list = ticked();
   if (!list.length) { toast('No files are ticked. Tick the files you want to print.'); return; }
   await runEstimate();

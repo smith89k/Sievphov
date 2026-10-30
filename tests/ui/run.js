@@ -252,6 +252,30 @@ app.whenReady().then(async () => {
     check((await js(`document.getElementById('printSum').textContent`)) === '12 pages · about 9 sheets', 'Repeat 3: the Print button counts the pages and sheets of all 3 sets');
     check(!(await js(`document.getElementById('status').textContent`)).includes('sheet'), 'pages and sheets are not repeated in the status bar');
     await shot('07b-repeat');
+    // a file that cannot be read stops the print, until it is fixed or removed
+    const askText = async () => { await key('P', ['control']); await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'box after Print'); return js(`document.querySelector('.modal.ask').innerText`); };
+    const closeAsk = async () => { await click('.modal.ask [data-r="0"]'); await sleep(200); };
+    let warned = await askText();
+    check(warned.includes('Fix this file before printing') && warned.includes('Broken.pdf') && warned.includes('Nothing was printed'), 'a broken file in the list: Print warns and names it');
+    check(await js(`document.querySelectorAll('.modal.ask .acts .btn').length === 1`), 'the warning has no Print button');
+    check(await js(`document.querySelectorAll('.row')[4].classList.contains('sel')`), 'the broken file is selected, ready to remove');
+    await shot('07c-fix-before-print');
+    await closeAsk();
+    check(await js(`!document.querySelector('.modal.report')`), 'nothing was printed');
+    fs.renameSync(files[2], files[2] + '.away');   // a good file moved away after it was added
+    warned = await askText();
+    check(warned.includes('Fix these 2 files before printing') && warned.includes('Invoice-2026-10.pdf'), 'a file moved away after it was added is caught too');
+    await closeAsk();
+    check((await rowText(2)).includes("Can't read"), 'the moved file says Can\'t read in the list');
+    fs.renameSync(files[2] + '.away', files[2]);
+    fs.writeFileSync(files[4], pdf([[595, 842]]));   // both fixed: pressing Print again is enough
+    warned = await askText();
+    check(warned.includes('Print 3 files, 3 times?'), 'fixed files are read again and print with the list');
+    check(!(await rowText(4)).includes("Can't read"), 'the fixed file no longer says Can\'t read');
+    await closeAsk();
+    await pickRow(4); await sleep(150);   // the warning left both files selected, and a tick goes to all selected rows
+    await js(`(() => { const t = document.querySelectorAll('.row')[4].querySelector('.tick'); t.checked = false; t.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await sleep(300);
     await key('P', ['control']);
     await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'print question');
     const ask = await js(`document.querySelector('.modal.ask').innerText`);
