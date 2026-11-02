@@ -57,6 +57,8 @@ document.querySelectorAll('svg[data-i]').forEach(s => { s.setAttribute('viewBox'
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
+// pages and sheets; blank paper has sheets but no pages, so a sum of only blank paper never says 0 pages
+const countText = (pages, sheets, about = '') => `${pages ? plural(pages, 'page') + ' · ' : ''}${about}${plural(sheets, 'sheet')}`;
 const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 
@@ -441,10 +443,10 @@ async function addPdfsNow(paths, preset, init) {
   else if (added.length > 1) toast(`Added ${plural(added.length, 'file')}.`);
 }
 /* ---------- blank paper: a row with no file, put between files as a separator ---------- */
-const BLANK_TIP = 'Blank paper: a separator sheet with nothing printed on it. It has the same settings as a file (printer, tray, paper, sides); Copies = how many blank sheets.';
+const BLANK_TIP = 'Blank paper: a separator sheet with nothing printed on it but a tiny dot near one corner, so that printers do not skip it. It has the same settings as a file (printer, tray, paper, sides); Copies = how many blank sheets.';
 /** Takes the settings and preset of `from` (the row above it), with 1 copy of all pages (1 copy = 1 sheet). */
 function blankItem(from) {
-  const it = { id: newItemId(), blank: true, path: '', name: 'Blank paper', folder: 'Separator — nothing printed', pageCount: 1,
+  const it = { id: newItemId(), blank: true, path: '', name: 'Blank paper', folder: 'Separator — blank sheet', pageCount: 1,
     pageSizes: [from?.pageSizes?.[0] || [595.28, 841.89]], password: null,
     settings: M.defaults(), presetId: null, presetName: null, modified: false, checked: true, status: 'wait', message: '' };
   if (from) Object.assign(it, { settings: M.clone(from.settings), presetId: from.presetId, presetName: from.presetName });
@@ -521,8 +523,10 @@ function totals(list = ticked()) {
 function renderSummary() {
   const t = totals(), r = state.repeat;
   // the only place with pages and sheets of what prints (the status bar counts the list, the panel the selection)
-  $('#printSum').textContent = t.files ? `${plural(t.pages * r, 'page')} · about ${plural(t.sheets * r, 'sheet')}` : 'Tick the files to print';
-  if (!state.printing) $('#printLbl').textContent = t.files ? `Print ${plural(t.files, 'file')}${r > 1 ? ` × ${r}` : ''}` : 'Print';
+  // no sheets yet: still being counted (says nothing), or the ticked files' page choices are wrong
+  $('#printSum').textContent = !t.files ? 'Tick the files to print' : t.sheets ? countText(t.pages * r, t.sheets * r, 'about ') : t.problems ? 'Check the pages' : '';
+  const what = ticked().every(it => it.blank) ? 'blank paper' : plural(t.files, 'file');
+  if (!state.printing) $('#printLbl').textContent = t.files ? `Print ${what}${r > 1 ? ` × ${r}` : ''}` : 'Print';
   $('#bPrint').disabled = !t.files || !!state.printing;
   syncRepeat();
 }
@@ -953,7 +957,7 @@ function syncPanel() {
 function syncPanelSummary() {
   const items = selected(), head = $('#settingsBox .sel-head small');
   if (!head || !items.length) return;
-  const t = totals(items), pages = items.reduce((n, it) => n + it.pageCount, 0);
+  const t = totals(items), pages = items.reduce((n, it) => n + (it.blank ? 0 : it.pageCount), 0);
   const e = items.length === 1 ? state.est.get(items[0].id) : null;
   const bad = items.length === 1 && items[0].message && ['error', 'locked', 'stopped'].includes(items[0].status) ? items[0].message : '';
   head.classList.toggle('bad', !!bad);
@@ -961,7 +965,7 @@ function syncPanelSummary() {
     ? `Separator · ${plural(e ? e.sheets : items[0].settings.Copies, 'blank sheet')} (= Copies)`
     : items.length === 1
     ? `${plural(items[0].pageCount, 'page')}${e ? (e.error ? ' · check the pages' : ` · prints ${plural(e.pagesPrinted, 'page')} on ${plural(e.sheets, 'sheet')}`) : ''}`
-    : `${plural(pages, 'page')} · about ${plural(t.sheets, 'sheet')}`;
+    : countText(pages, t.sheets, 'about ');
 }
 $('#settingsBox').insertAdjacentHTML('afterend', `<datalist id="fontList">${FONTS.map(f => `<option value="${esc(f)}">`).join('')}</datalist>`);
 
@@ -1402,7 +1406,7 @@ function openReport(rows) {
   const count = s => rows.filter(r => r.status === s).length;
   const stat = (n, cls, word) => n ? `<span class="pill ${cls}">${n} ${word}</span>` : '';
   const { box, close } = openBox('report', `<div class="head"><h2>Finished</h2><div class="stats">${stat(count('Printed'), 'printed', 'printed')}${stat(count('Error'), 'error', 'failed')}${stat(count('Stopped'), 'stopped', 'stopped')}
-      <span class="pill wait">${plural(rows.reduce((a, r) => a + (r.pages || 0), 0), 'page')} · ${plural(rows.reduce((a, r) => a + (r.sheets || 0), 0), 'sheet')}</span></div></div>
+      <span class="pill wait">${countText(rows.reduce((a, r) => a + (r.pages || 0), 0), rows.reduce((a, r) => a + (r.sheets || 0), 0))}</span></div></div>
     <div class="body"><table><thead><tr><th>File</th><th>Status</th><th>Message</th><th>Printer</th><th>Preset</th><th>Pages</th><th>Sheets</th><th>Copies</th></tr></thead><tbody>
     ${rows.map(r => `<tr><td title="${esc(r.folder)}">${esc(r.fileName)}</td><td><span class="pill ${({ Printed: 'printed', Error: 'error', Stopped: 'stopped' })[r.status] || 'wait'}">${esc(r.status)}</span></td><td title="${esc(r.message)}">${esc(r.message)}</td><td>${esc(r.printer)}</td><td>${esc(r.preset)}</td><td class="n">${r.pages || 0}</td><td class="n">${r.sheets || 0}</td><td class="n">${r.copies || 1}</td></tr>`).join('')}
     </tbody></table></div>
@@ -1441,7 +1445,7 @@ function openPreview(start) {
       <span class="pv-tools"><span class="seg" role="group" aria-label="Show"><button class="btn on" id="pvAllBtn">${svg('pages')}<span>All sheets</span></button><button class="btn" id="pvOneBtn">${svg('doc')}<span>One sheet</span></button></span>
       <label class="pv-size" title="Size of the sheets">${svg('eye')}<input type="range" id="pvSize" min="0" max="${SIZES.length - 1}" step="1" value="${size}" aria-label="Sheet size"></label></span></div>
     <div class="side"><h4>Files <span class="count">${pool.length}</span></h4><div class="pv-files" id="pvFiles"></div>
-      <p class="hint">${onlyTicked ? 'Only the ticked files are shown: they are what Print sends.' : 'No file is ticked, so every file is shown.'} Pick another preset for a file above its sheets to see how it would print. The dashed line is the edge the printer can reach; on a booklet the dash-dot line in the middle is the fold, which becomes the spine.</p></div>
+      <p class="hint">${onlyTicked ? 'Only the ticked files are shown: they are what Print sends.' : 'No file is ticked, so every file is shown.'} Pick another preset for a file above its sheets to see how it would print. The dashed line is the edge Sievphov prints up to, just inside what the printer can reach; on a booklet the dash-dot line in the middle is the fold, which becomes the spine.</p></div>
     <div class="view"><div class="pv-all" id="pvAll" tabindex="0"></div>
       <div class="pv-one" id="pvOne" hidden><div class="info" id="pvInfo"></div><div class="stage" id="pvStage"><span class="none">Drawing…</span></div>
         <div class="nav"><button class="btn icon" id="pvPrev" title="Previous side (←)">${svg('left')}</button><span id="pvNum"></span><button class="btn icon" id="pvNext" title="Next side (→)">${svg('right')}</button></div></div></div>
@@ -1592,7 +1596,7 @@ function openPreview(start) {
       stage.innerHTML = `<img alt="Sheet preview" src="${srcOf(r)}">`;
       sheetIn = { w: r.widthIn, h: r.heightIn };
       fitImg();
-      q('#pvInfo').textContent = `${it.name} · ${M.presetLabel(it)}${it.modified && it.presetName != null ? ' *' : ''}${it.settings.Layout === 'Booklet' ? ' · bound on the ' + (it.settings.Binding === 'Right' ? 'right' : 'left') : ''} · ${it.blank ? `blank sheet${it.settings.Copies > 1 ? ' × ' + it.settings.Copies : ''}, nothing printed` : `sheet ${r.sheet}${r.twoSided ? (r.isBack ? ', back' : ', front') : ''} · ${pagesOf(r)}`} · ${r.widthIn.toFixed(2)} × ${r.heightIn.toFixed(2)} in`;
+      q('#pvInfo').textContent = `${it.name} · ${M.presetLabel(it)}${it.modified && it.presetName != null ? ' *' : ''}${it.settings.Layout === 'Booklet' ? ' · bound on the ' + (it.settings.Binding === 'Right' ? 'right' : 'left') : ''} · ${it.blank ? `blank sheet${it.settings.Copies > 1 ? ' × ' + it.settings.Copies : ''}` : `sheet ${r.sheet}${r.twoSided ? (r.isBack ? ', back' : ', front') : ''} · ${pagesOf(r)}`} · ${r.widthIn.toFixed(2)} × ${r.heightIn.toFixed(2)} in`;
     } catch (e) {
       if (my !== seq) return;
       stage.innerHTML = `<span class="none">${esc(e.message)}</span>`; q('#pvInfo').textContent = '';

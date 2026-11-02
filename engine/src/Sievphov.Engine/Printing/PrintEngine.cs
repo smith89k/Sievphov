@@ -190,9 +190,10 @@ public sealed class PrintEngine
             var g = e.Graphics!;
             var ps = e.PageSettings;
             // Draw in whole-sheet coordinates: (0,0) is the paper corner, not the printable corner.
-            g.TranslateTransform(-ps.HardMarginX, -ps.HardMarginY);
-            var sheet = new RectangleF(0, 0, e.PageBounds.Width, e.PageBounds.Height);
-            var printable = RectangleF.Inflate(sheet, -ps.HardMarginX, -ps.HardMarginY);
+            // HardMarginX / Y are rounded down and say nothing about the right and bottom: too wide, and the right edge is lost.
+            var reach = LayoutMath.UprightArea(ps.PrintableArea, ps.Landscape);
+            g.TranslateTransform(-reach.X, -reach.Y);
+            var printable = LayoutMath.PrintArea(new SizeF(e.PageBounds.Width, e.PageBounds.Height), reach);
             if (renderer is not null && !sequence[next].IsBlank)
             {
                 // One solid picture per side: printers handle see-through watermarks badly.
@@ -202,8 +203,8 @@ public sealed class PrintEngine
             }
             else if (renderer is null)
             {
-                // Printers can skip a page with nothing on it: a white dot makes blank paper a real page, with no ink.
-                g.FillRectangle(Brushes.White, printable.X + printable.Width / 2, printable.Y + printable.Height / 2, 1, 1);
+                // Printers can skip a page with nothing on it, so blank paper carries a small black dot.
+                g.FillRectangle(Brushes.Black, LayoutMath.BlankSheetMark(printable));
             }
 
             next++;

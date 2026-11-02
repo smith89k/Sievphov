@@ -396,6 +396,47 @@ app.whenReady().then(async () => {
     await shot('10-about');
     await key('Escape');
 
+    // only blank paper ticked: it has sheets but no pages, so nothing may say "0 pages"
+    for (let i = await js(`document.querySelectorAll('.row').length`) - 1; i >= 0; i--)   // one at a time: the list is drawn again after each
+      await js(`(() => { const r = document.querySelectorAll('.row')[${i}], t = r.querySelector('.tick'); if (r.classList.contains('blank') || t.disabled) return; t.checked = false; t.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await sleep(200);
+    check((await js(`document.getElementById('printSum').textContent`)) === 'about 3 sheets', 'only blank paper ticked: the Print button counts sheets, not 0 pages');
+    check((await js(`document.getElementById('printLbl').textContent`)) === 'Print blank paper', 'only blank paper ticked: the Print button says Print blank paper');
+    await key('P', ['control']);
+    await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'print question 3');
+    await click('.modal.ask [data-r="1"]');
+    await waitFor(() => js(`!!document.querySelector('.modal.report')`), 'report 3', 20000);
+    check(!/\b0 pages\b/.test(await js(`document.querySelector('.modal.report .head').innerText`)), 'report of blank paper only: no 0 pages at the top');
+    await click('.modal.report [data-a="close"]');
+
+    // a long list in the smallest window: the status bar and the Print button stay on screen, the list scrolls by itself
+    const [minW, minH] = win.getMinimumSize();
+    check(minW <= 800 && minH <= 420, 'the window can shrink to fit a small screen (1280 × 720 at 150%)');
+    const many = Array.from({ length: 40 }, (_, i) => file(`Long-list-${i + 1}.pdf`, [[595, 842]]));
+    wc.send('open-paths', many);
+    await waitFor(() => js(`document.querySelectorAll('.row').length >= 40`), 'a long list');
+    for (const [w, h] of [[1440, 900], [minW, minH]]) {
+      win.setSize(w, h);
+      await sleep(400);
+      const seen = await js(`(() => {
+        const box = s => document.querySelector(s).getBoundingClientRect();
+        const status = box('#status'), print = box('#bPrint'), rows = document.getElementById('rows');
+        const onTop = document.elementFromPoint(status.left + 30, status.top + status.height / 2);
+        return { status: status.bottom <= innerHeight + 1 && !!onTop?.closest('#status'), print: print.bottom <= status.top, scrolls: rows.scrollHeight > rows.clientHeight && rows.getBoundingClientRect().bottom <= status.top };
+      })()`);
+      check(seen.status, `${w} × ${h}: the status bar shows, with 40 files`);
+      check(seen.print, `${w} × ${h}: the Print button shows above it`);
+      check(seen.scrolls, `${w} × ${h}: the list scrolls inside its own area`);
+    }
+    await shot('11-small-window-long-list');
+    wc.send('menu', 'managePresets');
+    await waitFor(() => js(`!!document.querySelector('.modal.presets')`), 'presets box in the small window');
+    await sleep(400);
+    check(await js(`['.ps-head', '.ps-nav'].every(s => { const e = document.querySelector('.presets ' + s); return e.scrollWidth <= e.clientWidth; }) && [...document.querySelectorAll('.presets .ptab span')].every(s => { const t = document.createRange(); t.selectNodeContents(s); return t.getBoundingClientRect().width <= s.getBoundingClientRect().width; })`), `${minW} × ${minH}: Manage presets fits, nothing runs into the next column`);
+    await shot('12-small-window-presets');
+    await click('.modal.presets [data-a="cancel"]');
+    await waitFor(() => js(`!document.querySelector('.modal.presets')`), 'presets box closed');
+
     // presets were saved to the settings folder
     const saved = JSON.parse(fs.readFileSync(path.join(user, 'presets.json'), 'utf8'));
     check(saved.Presets.length === 3 && saved.Presets[2].Settings.Layout === 'Booklet', 'presets.json written in the same shape as version 1');

@@ -204,7 +204,7 @@ public static class Program
     private static (SizeF Sheet, RectangleF Printable) SheetGeometry(JobItem item, int firstPage)
     {
         var s = item.Settings;
-        float paperW = 827, paperH = 1169, marginX = 25, marginY = 25; // A4 if the printer cannot be asked
+        var first = item.PageSizes.Count >= firstPage ? item.PageSizes[firstPage - 1] : new SizeF(595, 842);
         try
         {
             var ps = new PrinterSettings();
@@ -215,10 +215,11 @@ public static class Program
                 if (!string.IsNullOrEmpty(s.PaperSize) &&
                     ps.PaperSizes.Cast<PaperSize>().FirstOrDefault(p => p.PaperName == s.PaperSize) is PaperSize size)
                     page.PaperSize = size;
-                paperW = Math.Min(page.PaperSize.Width, page.PaperSize.Height);
-                paperH = Math.Max(page.PaperSize.Width, page.PaperSize.Height);
-                marginX = page.HardMarginX;
-                marginY = page.HardMarginY;
+                var portrait = new SizeF(Math.Min(page.PaperSize.Width, page.PaperSize.Height), Math.Max(page.PaperSize.Width, page.PaperSize.Height));
+                bool landscape = LayoutMath.SheetIsLandscape(s, first, portrait);
+                page.Landscape = landscape;   // as printing does: a printer's margins can differ with the way the sheet lies
+                var paper = landscape ? new SizeF(portrait.Height, portrait.Width) : portrait;
+                return (paper, LayoutMath.PrintArea(paper, LayoutMath.UprightArea(page.PrintableArea, landscape)));
             }
         }
         catch
@@ -226,12 +227,11 @@ public static class Program
             // keep A4
         }
 
-        var first = item.PageSizes.Count >= firstPage ? item.PageSizes[firstPage - 1] : new SizeF(595, 842);
-        bool landscape = LayoutMath.SheetIsLandscape(s, first, new SizeF(paperW, paperH));
-        var sheet = landscape ? new SizeF(paperH, paperW) : new SizeF(paperW, paperH);
-        if (landscape) (marginX, marginY) = (marginY, marginX);
-        var printable = RectangleF.Inflate(new RectangleF(PointF.Empty, sheet), -marginX, -marginY);
-        return (sheet, printable);
+        // A4 with a usual margin if the printer cannot be asked
+        var a4 = new SizeF(827, 1169);
+        bool wide = LayoutMath.SheetIsLandscape(s, first, a4);
+        var sheet = wide ? new SizeF(a4.Height, a4.Width) : a4;
+        return (sheet, RectangleF.Inflate(new RectangleF(PointF.Empty, sheet), -25, -25));
     }
 
     /// <summary>The last file read is kept, so flipping through a preview does not read it again.</summary>

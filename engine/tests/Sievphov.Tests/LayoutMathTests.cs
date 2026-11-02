@@ -7,6 +7,59 @@ namespace Sievphov.Tests;
 public class LayoutMathTests
 {
     private static readonly RectangleF Box = new(0, 0, 800, 1000);
+    private static readonly SizeF A4 = new(827, 1169);
+
+    private static void AssertStaysInside(RectangleF printer, RectangleF area)
+    {
+        Assert.True(area.Left >= printer.Left + LayoutMath.EdgeSafety - 0.01f, $"left {area.Left} against {printer.Left}");
+        Assert.True(area.Top >= printer.Top + LayoutMath.EdgeSafety - 0.01f, $"top {area.Top} against {printer.Top}");
+        Assert.True(area.Right <= printer.Right - LayoutMath.EdgeSafety + 0.01f, $"right {area.Right} against {printer.Right}");
+        Assert.True(area.Bottom <= printer.Bottom - LayoutMath.EdgeSafety + 0.01f, $"bottom {area.Bottom} against {printer.Bottom}");
+    }
+
+    [Fact]
+    public void BlankSheetMarkIsASmallDotNearTheCorner()
+    {
+        var area = new RectangleF(30, 30, 767, 1109);
+        var mark = LayoutMath.BlankSheetMark(area);
+        Assert.Equal(new SizeF(1, 1), mark.Size);   // 1/100 inch: big enough for any printer to draw
+        Assert.True(area.Right - mark.Right >= 5 && area.Bottom - mark.Bottom >= 5, "clear of the edge, even on a printer with no margin");
+        Assert.True(area.Contains(mark));
+    }
+
+    [Fact]
+    public void PrintAreaStaysInsideWhatARealPrinterReaches()
+    {
+        // HP Color LaserJet M855, A4: its driver gives a margin of 16 for a true 16.7, which made the sheet 1.7 too wide
+        var printer = new RectangleF(16.7f, 16.7f, 793.3f, 1135.8f);
+        AssertStaysInside(printer, LayoutMath.PrintArea(A4, printer));
+    }
+
+    [Fact]
+    public void PrintAreaAllowsForAWiderRightMarginAndStaysCentred()
+    {
+        var printer = new RectangleF(20, 15, 770, 1120);   // right margin 37, bottom margin 34
+        var area = LayoutMath.PrintArea(A4, printer);
+        AssertStaysInside(printer, area);
+        Assert.Equal(area.Left, A4.Width - area.Right, 2);   // the same each side, so a booklet's fold stays in the middle of the paper
+        Assert.Equal(area.Top, A4.Height - area.Bottom, 2);
+    }
+
+    [Fact]
+    public void PrintAreaKeepsTheWholeSheetWhenThereIsNoMargin()
+    {
+        // PDF printers report no margin (give or take rounding), and nothing can be cut off
+        Assert.Equal(new RectangleF(0, 0, 827, 1169), LayoutMath.PrintArea(A4, new RectangleF(0, 0, 827.2f, 1168.7f)));
+    }
+
+    [Fact]
+    public void UprightAreaUndoesTheSwapOfALandscapeSheet()
+    {
+        // .NET's PrintableArea gives a landscape sheet's area the portrait way round
+        var fromDotNet = new RectangleF(16.8f, 19.7f, 793.3f, 1129.7f);
+        Assert.Equal(new RectangleF(19.7f, 16.8f, 1129.7f, 793.3f), LayoutMath.UprightArea(fromDotNet, landscape: true));
+        Assert.Equal(fromDotNet, LayoutMath.UprightArea(fromDotNet, landscape: false));
+    }
 
     [Fact]
     public void FitKeepsShapeAndCenters()

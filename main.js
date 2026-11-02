@@ -64,7 +64,7 @@ function paintBar() { if (win && process.platform === 'win32') win.setTitleBarOv
 function createWindow() {
   allowClose = false;
   win = new BrowserWindow({
-    width: 1400, height: 880, minWidth: 900, minHeight: 540,
+    width: 1400, height: 880, minWidth: 800, minHeight: 420,   // small enough for 1280 × 720 at 150%: a bigger minimum puts the window's foot off the screen
     title: APP_TITLE,
     icon: path.join(__dirname, 'build', 'icon.png'),
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1f1d1b' : '#f7f5f1',

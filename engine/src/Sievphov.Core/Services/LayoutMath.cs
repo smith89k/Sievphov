@@ -12,6 +12,32 @@ public static class LayoutMath
     public static float MmToUnits(double mm) => (float)(mm / 25.4 * 100);
     public static SizeF PointsToUnits(SizeF pt) => new(pt.Width * 100f / 72f, pt.Height * 100f / 72f);
 
+    /// <summary>Kept clear inside the edge a printer reports (about 2 mm): paper feeds a little off, and a frame on the very edge would lose a side.</summary>
+    public const float EdgeSafety = 8;
+
+    /// <summary>
+    /// A small dot for blank paper (0.25 mm, smaller than a full stop), near the corner of the print area: printers can skip a page that looks
+    /// empty once it is ready to print, and a white mark still looks empty (pale grey can vanish too, as printers build grey out of dots).
+    /// </summary>
+    public static RectangleF BlankSheetMark(RectangleF printable) =>
+        new(printable.Right - 11, printable.Bottom - 11, 1, 1);
+
+    /// <summary>The printer's area as the sheet lies:.NET's PrintableArea gives a landscape sheet's the portrait way round.</summary>
+    public static RectangleF UprightArea(RectangleF printableArea, bool landscape) =>
+        landscape ? new RectangleF(printableArea.Y, printableArea.X, printableArea.Height, printableArea.Width) : printableArea;
+
+    /// <summary>
+    /// Where Sievphov prints on a sheet, in paper coordinates, from the printer's real area (<see cref="UprightArea"/>).
+    /// Both sides get the wider margin, so what prints stays in the middle of the paper and a booklet's fold on its centre line.
+    /// A printer with no margin (a PDF printer) keeps the whole sheet.
+    /// </summary>
+    public static RectangleF PrintArea(SizeF sheet, RectangleF printer)
+    {
+        static float Margin(float a, float b) { float m = Math.Max(a, b); return m < 1 ? 0 : m + EdgeSafety; }
+        float x = Margin(printer.Left, sheet.Width - printer.Right), y = Margin(printer.Top, sheet.Height - printer.Bottom);
+        return new RectangleF(x, y, sheet.Width - 2 * x, sheet.Height - 2 * y);
+    }
+
     /// <summary>Should the sheet be landscape for these settings and this first page (in points)?</summary>
     public static bool SheetIsLandscape(PrintSettings s, SizeF firstPage, SizeF portraitSheet)
     {

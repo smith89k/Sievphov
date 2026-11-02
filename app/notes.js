@@ -9,6 +9,13 @@ const KINDS = Object.freeze(['new', 'improved', 'fixed', 'removed']);   // the w
 const N = (version, date, notes) => Object.freeze({ version, date, notes: Object.freeze(notes.map(([kind, text]) => Object.freeze({ kind, text }))) });
 
 const NOTES = Object.freeze([
+  N('2.3.1', '2026-11-02', [
+    ['improved', 'Sievphov fits small screens: the window can get smaller, and Manage presets rearranges itself to fit.'],
+    ['fixed', 'The Print button and the status bar stay on screen with a long list of files. The list scrolls in its own area.'],
+    ['fixed', 'The right and bottom edges of a page are no longer cut off on paper. This showed on PDFs that run up to the page edge, such as slides from PowerPoint. Pages now stay about 2 mm inside what the printer can reach, so they print slightly smaller.'],
+    ['fixed', 'Blank paper now carries a tiny black dot near one corner, so printers that skip empty pages still print the sheet.'],
+    ['fixed', 'With only Blank paper ticked, the Print button and the report count sheets and no longer say 0 pages.']
+  ]),
   N('2.3.0', '2026-10-30', [
     ['new', 'Manage presets: Ctrl+click or Shift+click several presets and change a setting on all of them at once. Settings you do not touch stay as they are.'],
     ['improved', 'Save presets keeps Manage presets open, so you can go on to the next preset. The button next to it says Close when everything is saved and Cancel when there are changes not saved yet.'],

@@ -125,7 +125,7 @@ select.big option{padding:8px 10px}
 select.big.is-mixed{border-style:dashed;border-color:var(--warn)}
 
 /* ---------- main: file list | settings (presets on top of them) ---------- */
-main{display:grid;grid-template-columns:minmax(0,1fr) var(--tools-w,360px);min-height:0}
+main{display:grid;grid-template-columns:minmax(0,1fr) var(--tools-w,360px);grid-template-rows:minmax(0,1fr);min-height:0}   /* the row is the space there is: a long list scrolls, it does not push the Print button and status bar off the window */
 .resizer{position:absolute;top:0;bottom:0;width:7px;z-index:5;cursor:col-resize}
 .resizer.left{left:-4px}
 .resizer::after{content:"";position:absolute;top:0;bottom:0;left:2px;width:3px;background:var(--accent);opacity:0;transition:opacity .12s}
@@ -384,6 +384,19 @@ body.dropping .list::after{content:"Drop PDF files or folders to add them";posit
 .presets .pname input{flex:1;height:34px;border:1px solid var(--line-2);border-radius:6px;background:var(--field);padding:0 10px;font-size:14px;font-weight:600}
 .presets .pname .pmany{min-height:34px;display:flex;flex-direction:column;gap:2px;font-size:13px;line-height:1.35;color:var(--ink-2)}
 .presets .pname .pmany b{font-size:14px;color:var(--accent)}
+/* small windows: narrower columns, and the sample keeps only what fits in its own column */
+@media (max-width:1100px){
+  .modal.presets{grid-template-columns:380px minmax(0,1fr) 220px}
+  .presets .ptabs{padding:0 2px}
+  .presets .ptab{padding:0 1px}
+  .presets .psample{overflow:hidden}
+  .presets .ps-head{padding:8px 6px}
+  .presets .ps-head b,.presets #pmSampleSum,.presets .ps-pages,.presets .plist li .kb{display:none}
+  .presets .ps-nav{justify-content:center;gap:4px;padding:8px 6px}
+  .presets #pmNum{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+@media (max-width:940px){.presets .ps-zoom{display:none}}
+@media (max-height:520px){.presets .head{padding:8px 24px}.presets .acts{padding:8px 24px}.presets .pname{padding:8px 18px}.presets .ps-stage{padding:10px}}
 /* preview: fills the window under the title row, like Bohpum's print screen */
 .modal-bg.full-screen{top:37px;padding:0;background:var(--chrome);place-items:stretch}
 .modal.preview{width:100%;max-width:none;height:100%;max-height:none;padding:0;gap:0;border-radius:0;box-shadow:none;display:grid;grid-template-columns:300px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;background:var(--surface)}
