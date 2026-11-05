@@ -9,6 +9,9 @@ contextBridge.exposeInMainWorld('sievphov', {
   appTitle: arg('--sievphov-title') || 'Sievphov',
   fakeEngine: process.argv.includes('--sievphov-fake'),
   appVersion: () => ipcRenderer.invoke('app-version'),
+  // the Store copy's updates (store-update.js): 'state' | 'check' | 'download' | 'install' | 'open-store'; null when not the Store copy
+  storeUpdate: action => ipcRenderer.invoke('store-update', action),
+  onStoreUpdate: fn => ipcRenderer.on('store-update', (_e, s) => fn(s)),
   initialPaths: () => ipcRenderer.invoke('initial-paths'),
   // the app's own files in its settings folder: 'presets' | 'settings'
   storeRead: name => ipcRenderer.invoke('store-read', name),

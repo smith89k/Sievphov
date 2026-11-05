@@ -1769,6 +1769,27 @@ function openAbout() {
   box.querySelector('[data-close]').onclick = close;
   box.querySelector('[data-close]').focus({ preventScroll: true });
 }
+/* ================================================================== updates, as Sastra PDF (app/update-panel.js) */
+// The Store copy: the badge and panel do it all. Any other copy: Check for Updates says updates come from the Store.
+const Updates = window.SievphovUpdatePanel;
+async function checkUpdatesCmd() {
+  if (anyModal()) return;
+  if (await Updates.active()) return Updates.check();
+  const v = await desk?.appVersion().catch(() => '') || '';
+  const c = await askChoice('Updates come from the Microsoft Store', [['Close', 'outline'], ['Open the Store', 'primary']],
+    { detail: `You have version ${v}. This copy was not installed from the Microsoft Store, so it cannot update itself. Install Sievphov from the Store and it stays up to date by itself.` });
+  if (c === 1) desk?.storeUpdate('open-store');
+}
+// Install closes Sievphov: a list with changes not saved is asked about first. → true to go on
+async function askUnsavedForUpdate() {
+  if (!state.jobDirty || !state.items.length) return true;
+  const c = await askChoice('Your list has changes that are not saved', [['Cancel', 'outline'], ['Install without saving', 'outline'], ['Save and install', 'primary']],
+    { detail: 'Sievphov closes to install the update. Save the list as a job first to keep it.' });
+  if (c === 0) return false;
+  if (c === 2) { await saveJob(false); return !state.jobDirty; }
+  return true;
+}
+
 const NOTES_SEEN = 'sievphov-notes-seen';
 const KIND_WORDS = { new: 'New', improved: 'Improved', fixed: 'Fixed', removed: 'Removed' };
 function notesList(notes) {
@@ -1849,7 +1870,7 @@ const COMMANDS = {
   importPresets: () => openPresetManager(), exportPresets: () => desk?.exportPresets({ Presets: state.lib.Presets }).then(p => p && toast('Presets exported.')),
   preview: () => openPreview(), estimate: estimateCmd,
   themeSystem: () => setTheme('system'), themeLight: () => setTheme('light'), themeDark: () => setTheme('dark'),
-  whatsNew: () => desk?.appVersion().then(openNotes), about: openAbout
+  whatsNew: () => desk?.appVersion().then(openNotes), checkUpdates: checkUpdatesCmd, about: openAbout
 };
 let altAlone = false;
 document.addEventListener('keydown', e => {
@@ -1918,6 +1939,7 @@ async function start() {
     const v = await desk.appVersion();
     document.documentElement.dataset.notes = SievphovNotes.shouldShow(v, lsGet(NOTES_SEEN)) && openNotes(v) ? 'shown' : 'none';
   } catch { document.documentElement.dataset.notes = 'none'; }
+  Updates.init({ desk, askUnsaved: askUnsavedForUpdate, askChoice, screenFree: () => !anyModal(), printing: () => !!state.printing });
   document.documentElement.dataset.ready = '1';
 }
 start();

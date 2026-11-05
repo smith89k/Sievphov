@@ -17,7 +17,8 @@
     "icons": "electron scripts/make-icons.js",
     "dist": "node scripts/check-notes.js && node scripts/build-engine.js && electron-builder --win nsis --publish never",
     "dist:portable": "node scripts/check-notes.js && node scripts/build-engine.js && electron-builder --win portable --publish never",
-    "dist:store": "node scripts/check-notes.js && node scripts/build-engine.js && electron-builder --win appx --publish never"
+    "store-helper": "node scripts/build-store-update.js",
+    "dist:store": "node scripts/check-notes.js && node scripts/build-engine.js && node scripts/build-store-update.js && electron-builder --win appx --publish never --config build/store.config.js"
   },
   "devDependencies": {
     "electron": "44.7.2",
@@ -36,6 +37,7 @@
       "preload.js",
       "engine.js",
       "sample-pdf.js",
+      "store-update.js",
       "app/**/*",
       "build/icon.png",
       "package.json"

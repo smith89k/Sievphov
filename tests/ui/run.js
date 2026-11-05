@@ -3,6 +3,10 @@
 // SIEVPHOV_SHOTS=<folder> says where the pictures go (default: %TEMP%/sievphov-shots). Exit code 0 = every check passed.
 process.env.SIEVPHOV_FAKE_ENGINE = '1';
 process.env.SIEVPHOV_TEST = '1';
+// acts as the Microsoft Store copy, with a stand-in for the Store helper (tests/helpers/fake-store-helper.js); what the
+// pretend Store says is in storeSays (below), changed by the update checks at the end
+process.env.SIEVPHOV_STORE_TEST = '1';
+process.env.SIEVPHOV_STORE_HELPER = require('path').join(__dirname, '..', 'helpers', 'fake-store-helper.js');
 const { app, BrowserWindow } = require('electron');
 const fs = require('fs');
 const os = require('os');
@@ -14,6 +18,9 @@ app.disableHardwareAcceleration();
 
 const user = fs.mkdtempSync(path.join(os.tmpdir(), 'sievphov-ui-'));
 app.setPath('userData', user);
+process.env.SIEVPHOV_FAKE_STORE_FILE = path.join(user, 'fake-store.txt');
+const storeSays = mode => fs.writeFileSync(process.env.SIEVPHOV_FAKE_STORE_FILE, mode);
+storeSays('current');
 const shots = process.env.SIEVPHOV_SHOTS || path.join(os.tmpdir(), 'sievphov-shots');
 fs.mkdirSync(shots, { recursive: true });
 
@@ -463,6 +470,64 @@ app.whenReady().then(async () => {
     // presets were saved to the settings folder
     const saved = JSON.parse(fs.readFileSync(path.join(user, 'presets.json'), 'utf8'));
     check(saved.Presets.length === 3 && saved.Presets[2].Settings.Layout === 'Booklet', 'presets.json written in the same shape as version 1');
+
+    // updates, as Sastra PDF does them: the Store copy's badge and panel (app/update-panel.js), with the stand-in Store helper
+    win.setSize(1440, 900); await sleep(300);
+    const upd = () => js(`document.querySelector('.modal.update-panel')?.dataset.stage || ''`);
+    const updText = () => js(`document.querySelector('.modal.update-panel')?.innerText || ''`);
+    const badge = () => js(`(b => b.hidden ? '' : b.textContent)(document.getElementById('bUpdate'))`);
+    const updClick = act => click(`.modal.update-panel [data-act="${act}"]`);
+    check(await badge() === '', 'no update found in the background: no badge, nothing opened');
+    wc.send('menu', 'checkUpdates');
+    await waitFor(async () => (await upd()) === 'current', 'You have the latest version');
+    check((await updText()).includes('Version 2.3.4 is the newest one'), 'Help › Check for Updates: You have the latest version, with the version');
+    await shot('13-update-current');
+    await updClick('close');
+    storeSays('fail');
+    wc.send('menu', 'checkUpdates');
+    await waitFor(async () => (await upd()) === 'failed', "Couldn't check");
+    check((await updText()).includes("Couldn't check for updates") && await js(`!!document.querySelector('.modal.update-panel [data-act="store"]')`), "the Store can't be reached: Couldn't check for updates, with Open in Store");
+    await updClick('close');
+    storeSays('ask');   // Windows must ask before downloading
+    wc.send('menu', 'checkUpdates');
+    await waitFor(async () => (await upd()) === 'available', 'Update available');
+    check((await updText()).includes('Windows will ask before downloading') && (await updText()).includes('2.3.5') && await badge() === 'Update available', 'Windows must ask: Update available, 2.3.4 → 2.3.5, a Download button, the badge says so');
+    await shot('14-update-available');
+    await updClick('close');
+    storeSays('update');   // the Store's automatic updates on: it downloads by itself
+    wc.send('menu', 'checkUpdates');
+    await waitFor(async () => (await upd()) === 'downloading' && /\d+ of 48 MB/.test(await updText()), 'the download');
+    check(/↓ Update \d+%/.test(await badge()), 'a quiet download: the badge counts it up');
+    await shot('15-update-downloading');
+    await updClick('close');   // Hide: the download goes on
+    await waitFor(async () => (await badge()) === 'Update ready', 'Update ready badge');
+    check(await js(`!document.querySelector('.modal')`), 'the download finished: only the badge says so, nothing opens by itself');
+    await shot('16-update-badge-ready');
+    await click('#bUpdate');
+    await waitFor(async () => (await upd()) === 'ready', 'the panel from the badge');
+    check((await updText()).includes('close to install 2.3.5') && (await updText()).includes('Start menu'), 'Update ready: names 2.3.5, says to start it from the Start menu if it does not open again');
+    check(await js(`document.activeElement?.textContent === 'Later'`), 'on Update ready the focus is on Later: Enter never installs');
+    await shot('17-update-ready');
+    await updClick('install');
+    await sleep(100);
+    check((await upd()) === 'ready' && await js(`!document.querySelector('.modal.ask')`), 'Install ignores a click in its first half second (one meant for Hide)');
+    storeSays('install-fail');
+    await sleep(500);
+    await updClick('install');   // the list was changed: asked first
+    await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'save the list first?');
+    check((await js(`document.querySelector('.modal.ask').innerText`)).includes('not saved'), 'Install with a list not saved: asks to save it first');
+    await click('.modal.ask [data-r="1"]');   // Install without saving
+    await waitFor(async () => (await upd()) === 'install-failed', 'install failed');
+    check((await updText()).includes("The update couldn't be installed") && await badge() === 'Update ready', "an install that fails: The update couldn't be installed, still Update ready");
+    await updClick('close');
+    storeSays('update');
+    await click('#bUpdate'); await sleep(600);
+    await updClick('install');
+    await waitFor(() => js(`!!document.querySelector('.modal.ask')`), 'save the list first, again');
+    await click('.modal.ask [data-r="1"]');
+    await waitFor(async () => (await upd()) === 'installing', 'installing');
+    check((await updText()).includes('Sievphov will close in a moment') && await js(`!document.querySelector('.modal.update-panel .acts .btn')`), 'Installing…: no buttons, Sievphov closes in a moment');
+    await shot('18-update-installing');
   } catch (e) {
     console.error('FAIL ' + (e.stack || e));
     failures++;

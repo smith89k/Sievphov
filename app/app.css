@@ -529,3 +529,23 @@ body.dropping .list::after{content:"Drop PDF files or folders to add them";posit
 @media (max-width:1360px){.cols{--cols:34px 30px minmax(150px,2.2fr) 50px minmax(100px,1.3fr) minmax(100px,1.3fr) minmax(90px,1fr) 48px minmax(90px,1fr)}.c-sides{display:none!important}}
 @media (max-width:1180px){.cols{--cols:34px 30px minmax(140px,2fr) 46px minmax(96px,1.2fr) minmax(90px,1fr) 44px minmax(86px,1fr)}.c-tray,.c-sides{display:none!important}}
 @media (prefers-reduced-motion:reduce){.spin{animation-duration:2s}.toast,.tsec-head svg.chev,.bar>i{transition:none}}
+
+/* ---------- updates, as Sastra PDF (app/update-panel.js): the badge in the title row and the panel ---------- */
+.upd-badge{flex:none;height:24px;margin-left:10px;padding:0 11px;border-radius:12px;border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--accent);font:inherit;font-size:12px;font-weight:500;white-space:nowrap;cursor:pointer;font-variant-numeric:tabular-nums}
+.upd-badge:hover{border-color:var(--accent)}
+.upd-badge.ready{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.upd-badge.ready:hover{background:var(--accent-hover)}
+.upd-badge:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.modal.update-panel{width:min(460px,calc(100vw - 32px));max-width:none}
+.update-panel h2{display:flex;align-items:center;gap:10px}
+.update-panel .acts.empty{padding:0;border:0;min-height:14px;background:none}
+.u-versions{display:flex;align-items:center;justify-content:space-around;margin:4px 0;text-align:center}
+.u-k{font-size:12px;font-weight:600;color:var(--ink-3)}
+.u-v{font-size:30px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.u-old .u-v{color:var(--ink-3)}
+.u-arrow{font-size:26px;color:var(--ink-3)}
+.u-bar{height:6px;margin-bottom:-8px;border-radius:3px;background:var(--accent-soft);overflow:hidden}
+.u-bar i{display:block;width:0;height:100%;background:var(--accent);transition:width .3s}
+.u-prog{display:flex;justify-content:space-between;gap:12px;min-height:16px;font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.modal .u-hint{margin:-6px 0 0;font-size:12px;color:var(--ink-3)}
+@media (prefers-reduced-motion:reduce){.u-bar i{transition:none}}

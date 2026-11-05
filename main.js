@@ -8,6 +8,7 @@ const os = require('os');
 const { execFile } = require('child_process');
 const { createEngine } = require('./engine');
 const samplePdf = require('./sample-pdf');
+const storeUpdates = require('./store-update');
 
 const APP_NAME = 'Sievphov';
 // package.json's version (also when main.js is loaded by tests/ui/run.js, where app.getVersion() would be Electron's)
@@ -152,6 +153,7 @@ function buildMenu() {
     ]},
     { label: '&Help', submenu: [
       { label: "What's &New", click: () => send('whatsNew') },
+      { label: 'Check for &Updates…', click: () => send('checkUpdates') },
       { label: '&About Sievphov', click: () => send('about') }
     ]}
   ]));
@@ -356,6 +358,45 @@ ipcMain.handle('show-menu', (e, index, x, y) => new Promise(resolve => {
 }));
 ipcMain.on('show-folder', (_e, p) => { if (p) shell.showItemInFolder(String(p)); });
 ipcMain.handle('app-version', () => VERSION);
+/* Updates, as Sastra PDF does them (store-update.js, app/update-panel.js): the copy installed from the Microsoft Store asks the
+   Store through the helper program store-update/out/SievphovStoreUpdate.exe (in the Store package's resources\store-update).
+   Any other copy (the installer, `pnpm start`) answers null and is pointed to the Store. Tests only, from source:
+   SIEVPHOV_STORE_TEST=1 makes `electron .` act as the Store copy, SIEVPHOV_STORE_HELPER=<js> runs a stand-in helper. */
+const STORE_URL = 'ms-windows-store://pdp/?ProductId=9N3C696Q2SK7';
+const STORE = process.windowsStore === true || (!app.isPackaged && process.env.SIEVPHOV_STORE_TEST === '1');
+let storeUp = null;   // started when the page first asks
+function startStoreUpdates() {
+  const log = storeUpdates.logTo(path.join(os.tmpdir(), 'Sievphov', 'update.log'));
+  const fake = !app.isPackaged && process.env.SIEVPHOV_STORE_HELPER;   // tests only, never in the installed app
+  const run = storeUpdates.makeRun(fake
+    ? { command: process.execPath, prefix: [fake], env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, log }
+    : { command: path.join(process.resourcesPath, 'store-update', 'SievphovStoreUpdate.exe'), log });
+  storeUp = storeUpdates.createStoreUpdater({
+    run, log, current: VERSION,
+    send: s => { if (win) win.webContents.send('store-update', s); },
+    hwnd: () => win ? win.getNativeWindowHandle().readBigUInt64LE(0).toString() : null,
+    taskOpen: () => false,   // printing blocks Install in the page (app/update-panel.js), which knows it
+    // Loading it is what asks Windows to open Sievphov again after the update closes it (store-update/restart.cpp)
+    registerRestart: () => { if (app.isPackaged) process.dlopen({ exports: {} }, path.join(process.resourcesPath, 'store-update', 'SievphovRestart.node')); }
+  });
+  storeUp.start();
+}
+ipcMain.handle('store-update', async (_e, action) => {
+  if (action === 'open-store') { shell.openExternal(STORE_URL).catch(() => {}); return {}; }
+  if (!STORE) return null;
+  if (!storeUp) startStoreUpdates();
+  if (action === 'state') return storeUp.state();
+  if (action === 'check') return storeUp.checkNow();
+  if (action === 'download') return storeUp.download();
+  if (action === 'install') {
+    allowClose = true;   // before: Windows closes the app to install, and the page has already asked about the unsaved list
+    const r = await storeUp.install();
+    if (!r.ok) allowClose = false;   // it didn't happen: closing must ask again
+    return r;
+  }
+  return null;
+});
+app.on('will-quit', () => { if (storeUp) storeUp.stop(); });
 ipcMain.handle('initial-paths', () => { const p = pendingPaths; pendingPaths = []; return p; });
 
 app.whenReady().then(() => {
