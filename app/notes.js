@@ -9,6 +9,18 @@ const KINDS = Object.freeze(['new', 'improved', 'fixed', 'removed']);   // the w
 const N = (version, date, notes) => Object.freeze({ version, date, notes: Object.freeze(notes.map(([kind, text]) => Object.freeze({ kind, text }))) });
 
 const NOTES = Object.freeze([
+  N('2.3.4', '2026-11-05', [
+    ['improved', 'Updates work as in Sastra PDF. The update window shows your version and the new one by number (for example 2.3.4 → 2.3.5), how much is downloaded and about how long is left. When it says Update ready, click Install, or Later and the Store installs it in its own time.'],
+    ['improved', 'When the Store\'s automatic updates are turned off, the badge says Update available, and Download lets Windows ask you first.'],
+    ['fixed', 'Updates take more care: nothing opens over your work by itself, Install waits until printing has finished, and an update that cannot be checked or installed offers Open in Store.']
+  ]),
+  N('2.3.3', '2026-11-03', [
+    ['new', 'Sievphov keeps itself up to date from the Microsoft Store. A new version downloads in the background while you work, and a small badge at the top right shows how far it is. When it says Update ready, click it, then Restart and install: Sievphov closes, installs the new version and opens again. Help › Check for Updates checks at once.'],
+    ['fixed', 'The Sievphov icon is sharp on the taskbar, in Start and in Open with, with no box behind it.']
+  ]),
+  N('2.3.2', '2026-11-03', [
+    ['new', 'Replace file: when a file in the list was moved, renamed or deleted, right-click it → Replace file… (or double-click a file that says Can\'t read) and pick it again. It keeps its place in the list, its preset and its settings.']
+  ]),
   N('2.3.1', '2026-11-02', [
     ['improved', 'Sievphov fits small screens: the window can get smaller, and Manage presets rearranges itself to fit.'],
     ['fixed', 'The Print button and the status bar stay on screen with a long list of files. The list scrolls in its own area.'],
