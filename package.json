@@ -18,7 +18,8 @@
     "dist": "node scripts/check-notes.js && node scripts/build-engine.js && electron-builder --win nsis --publish never",
     "dist:portable": "node scripts/check-notes.js && node scripts/build-engine.js && electron-builder --win portable --publish never",
     "store-helper": "node scripts/build-store-update.js",
-    "dist:store": "node scripts/check-notes.js && node scripts/build-engine.js && node scripts/build-store-update.js && electron-builder --win appx --publish never --config build/store.config.js"
+    "dist:store": "node scripts/check-notes.js && node scripts/build-engine.js && node scripts/build-store-update.js && electron-builder --win appx --publish never --config build/store.config.js && node scripts/release-notes.js --store --write",
+    "release-notes": "node scripts/release-notes.js"
   },
   "devDependencies": {
     "electron": "44.7.2",
