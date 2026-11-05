@@ -1,7 +1,8 @@
 // Release notes from a version's What's new entry (app/notes.js), so the notes are written once (as Sastra PDF and Bohpum):
 //   node scripts/release-notes.js [version]            Markdown for the GitHub release (## New / ## Improved / ## Fixed …)
 //   node scripts/release-notes.js [version] --store    plain text for Partner Center › What's new in this version
-//                                                       (NEW / • …; at most 1500 characters, the Store's limit)
+//                                                       ("New in this version:" / "Improved:" / "Fixed:", each note
+//                                                       a "- " line; at most 1500 characters, the Store's limit)
 //   … --store --write                                   also saves it as dist/Sievphov-Store-<version>-whats-new.txt
 // The version defaults to package.json's. Exit 1 when that version has no entry, or its Store text is too long.
 // `pnpm run dist:store` runs the --store --write form, so every Store package comes with its What's new text.
@@ -22,9 +23,11 @@ const groups = (entry, kinds) => kinds.map(k => [k, entry.notes.filter(n => n.ki
 function notesMarkdown(entry, kinds = Object.keys(WORDS)) {
   return groups(entry, kinds).map(([k, list]) => `## ${WORDS[k]}\n${list.map(t => `- ${t}\n`).join('')}`).join('\n');
 }
-// "NEW\n• …\nFIXED\n• …" — Partner Center shows plain text only
+// The Store page's What's new, in the user's own layout (plain text: Partner Center shows no Markdown):
+//   New in this version:\n- …\n\nImproved:\n- …\n\nFixed:\n- …
+const STORE_HEADS = { new: 'New in this version:', improved: 'Improved:', fixed: 'Fixed:', removed: 'Removed:' };
 function notesStore(entry, kinds = Object.keys(WORDS)) {
-  return groups(entry, kinds).map(([k, list]) => `${WORDS[k].toUpperCase()}\n${list.map(t => `• ${t}`).join('\n')}`).join('\n');
+  return groups(entry, kinds).map(([k, list]) => `${STORE_HEADS[k]}\n${list.map(t => `- ${t}`).join('\n')}`).join('\n\n');
 }
 
 if (require.main === module) {

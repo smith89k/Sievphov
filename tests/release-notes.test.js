@@ -10,8 +10,9 @@ test('Markdown: the kinds in What\'s new order, only those the entry has', () =>
   assert.equal(notesMarkdown(entry, N.KINDS), '## New\n- A\n- B\n\n## Fixed\n- C\n');
 });
 
-test('Store text: plain words, no Markdown', () => {
-  assert.equal(notesStore(entry, N.KINDS), 'NEW\n• A\n• B\nFIXED\n• C');
+test('Store text, as the Store page shows it: New in this version: / Improved: / Fixed:, "- " lines, a blank line between', () => {
+  assert.equal(notesStore(entry, N.KINDS), 'New in this version:\n- A\n- B\n\nFixed:\n- C');
+  assert.equal(notesStore({ notes: [{ kind: 'improved', text: 'D' }] }, N.KINDS), 'Improved:\n- D');
 });
 
 test('every Store version\'s What\'s new fits the Store\'s 1500 characters (the Store began with 2.2.0)', () => {
