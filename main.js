@@ -119,6 +119,7 @@ function buildMenu() {
       k('Select &All', 'Ctrl+A', 'selectAll'),
       k('&Remove from List', 'Delete', 'remove'),
       k('Insert &Blank Paper', 'Ctrl+B', 'insertBlank'),
+      k('Replace &File…', undefined, 'replaceFile'),
       k('Remove &Printed', undefined, 'removePrinted'),
       k('&Clear List', undefined, 'clear'),
       { type: 'separator' },
@@ -205,6 +206,16 @@ ipcMain.handle('add-files-dialog', async () => {
   if (r.canceled || !r.filePaths.length) return [];
   remember('open', path.dirname(r.filePaths[0]));
   return r.filePaths;
+});
+// Replace file: one PDF, starting in the old file's folder when it is still there.
+// tests/ui/run.js has no Windows dialog to click: it puts the answer in global.sievphovTestPick instead.
+ipcMain.handle('replace-file-dialog', async (_e, oldPath) => {
+  if (process.env.SIEVPHOV_TEST && 'sievphovTestPick' in global) { const p = global.sievphovTestPick; delete global.sievphovTestPick; return p || null; }
+  const old = String(oldPath || ''), dir = old && path.dirname(old);
+  const r = await dialog.showOpenDialog(win, { title: `Replace ${path.basename(old) || 'file'}`, buttonLabel: 'Replace', defaultPath: dir && await isDir(dir) ? dir : await startIn('open'), properties: ['openFile'], filters: PDF_FILTER });
+  if (r.canceled || !r.filePaths.length) return null;
+  remember('open', path.dirname(r.filePaths[0]));
+  return r.filePaths[0];
 });
 ipcMain.handle('add-folder-dialog', async () => {
   const r = await dialog.showOpenDialog(win, { title: 'Add a folder of PDF files', buttonLabel: 'Add folder', defaultPath: await startIn('open'), properties: ['openDirectory'] });

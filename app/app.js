@@ -185,7 +185,7 @@ const STATUS_WORD = { wait: 'Wait', printing: 'Printing', printed: 'Printed', er
 function statusOf(it) {
   const e = state.est.get(it.id);
   if (it.status === 'wait' && e && e.error) return { cls: 'check', text: 'Check pages', tip: e.error };
-  if ((it.status === 'wait' || it.status === 'error') && it.pageCount === 0) return { cls: 'error', text: "Can't read", tip: it.message };
+  if ((it.status === 'wait' || it.status === 'error') && it.pageCount === 0) return { cls: 'error', text: "Can't read", tip: `${it.message ? it.message + '\n' : ''}Double-click to pick the file again (Replace file).` };
   const text = (it.status === 'printing' || (it.status === 'wait' && state.printing)) && it.message ? it.message : STATUS_WORD[it.status];
   return { cls: it.status, text, tip: it.message || text };
 }
@@ -283,7 +283,11 @@ rowsEl.addEventListener('change', e => {
   markDirty(); refresh({ panel: false, estimate: false });
 });
 $('#tickAll').addEventListener('change', e => { for (const it of state.items) if (it.pageCount > 0) it.checked = e.target.checked; markDirty(); refresh({ panel: false, estimate: false }); });
-rowsEl.addEventListener('dblclick', e => { const row = e.target.closest('.row'); if (row) openPreview(byId(row.dataset.id)); });
+// double-click: Preview; a file that cannot be read has nothing to show, so it asks for the file instead
+rowsEl.addEventListener('dblclick', e => {
+  const row = e.target.closest('.row'), it = row && byId(row.dataset.id); if (!it) return;
+  if (!it.blank && it.pageCount === 0 && it.status !== 'locked') { selectOnly([it.id]); replaceFileCmd(); } else openPreview(it);
+});
 
 /* ---------- sorting (rearranges the list itself, like sorting in Explorer and then keeping that order) ---------- */
 const SORT_KEYS = {
@@ -486,6 +490,32 @@ async function openPdf(path, it) {
       }
     }
   }
+}
+/**
+ * Replace file: the selected row reads another PDF (a file moved, renamed, deleted or damaged, or a newer version).
+ * The row keeps its place, tick, preset and settings; a file that cannot be read leaves the row as it was.
+ */
+async function replaceFileCmd() {
+  if (state.printing || !desk) return;
+  const sel = selected();
+  if (sel.length !== 1 || sel[0].blank) { toast(sel.length > 1 ? 'Select only one file to replace.' : 'Select the file to replace.'); return; }
+  const it = sel[0];
+  const p = await desk.replaceFileDialog(it.path);
+  if (!p || !byId(it.id)) return;
+  const other = state.items.find(o => o !== it && !o.blank && o.path.toLowerCase() === p.toLowerCase());
+  if (other) { toast(`${other.name} is already in the list (row ${state.items.indexOf(other) + 1}).`, true); return; }
+  const name = p.split(/[\\/]/).pop(), old = it.name;
+  const b = busy(`Reading ${name}`);
+  let r;
+  try { r = await openPdf(p, { name }); }
+  catch (e) { toast(`${name} could not be used: ${e.reason === 'password' ? 'it is locked with a password' : String(e.message).replace(/\.$/, '')}. ${old} was not replaced.`, true); return; }
+  finally { b.done(); }
+  const wasBad = it.pageCount === 0;   // a broken row comes back ticked; a good one keeps its tick as it was
+  Object.assign(it, { path: p, name, folder: p.slice(0, p.length - name.length - 1), pageCount: r.pageCount, pageSizes: r.pageSizes, password: r.password,
+    checked: wasBad || it.checked, status: 'wait', message: '' });
+  state.est.delete(it.id);
+  markDirty(); refresh(); buildPanel();
+  toast(name === old ? `${name} was read again from its new place.` : `${old} was replaced with ${name}.`);
 }
 function removeItems(list) {
   if (state.printing || !list.length) return;
@@ -1318,7 +1348,7 @@ async function printCmd() {
   if (bad.length) {   // no partial print: a book with a file missing is worse than no book
     selectOnly(bad.map(it => it.id));
     await askChoice(bad.length === 1 ? 'Fix this file before printing' : `Fix these ${bad.length} files before printing`, [['OK', 'primary']], {
-      detail: 'Nothing was printed. Repair or replace the file, then press Print again. If you do not need it, remove it from the list with the Delete key.',
+      detail: 'Nothing was printed. Repair the file, or pick it again with right-click → Replace file (or double-click it), then press Print again. If you do not need it, remove it from the list with the Delete key.',
       names: bad.map(it => `${it.name}: ${it.message}`) });
     return;
   }
@@ -1687,6 +1717,7 @@ rowsEl.addEventListener('contextmenu', e => {
     { label: 'Untick', icon: 'uncheck', run: () => { for (const it of selected()) it.checked = false; markDirty(); refresh({ estimate: false, panel: false }); } },
     { label: 'Preview', kb: 'F5', icon: 'eye', run: () => openPreview(byId(row.dataset.id)) },
     { label: 'Show in folder', icon: 'open', disabled: !!byId(row.dataset.id).blank, run: () => desk?.showInFolder(byId(row.dataset.id).path) },
+    { label: 'Replace file…', icon: 'doc', disabled: !idle || n !== 1 || !!items[0]?.blank, run: replaceFileCmd },
     '-',
     { label: 'Insert blank paper after', kb: 'Ctrl+B', icon: 'blank', disabled: !idle, run: insertBlankCmd },
     { label: n > 1 ? `Remove ${n} files from list` : 'Remove from list', kb: 'Del', icon: 'trash', disabled: !idle, run: () => removeItems(selected()) }
@@ -1810,7 +1841,7 @@ resizer('#toolsResizer', '--tools-w', 'sievphov-tools-w', 300, 520, x => innerWi
 const COMMANDS = {
   addFiles: addFilesCmd, addFolder: addFolderCmd, openJob: openJobCmd, saveJob: () => saveJob(false), saveJobAs: () => saveJob(true), print: printCmd, afterPrint: openAfterPrint,
   selectAll: () => selectOnly(state.items.map(it => it.id)), remove: () => removeItems(selected()),
-  insertBlank: insertBlankCmd,
+  insertBlank: insertBlankCmd, replaceFile: replaceFileCmd,
   removePrinted: () => removeItems(state.items.filter(it => it.status === 'printed')), clear: clearList,
   up: () => moveSelected(-1), down: () => moveSelected(1), copySettings, pasteSettings,
   reset: () => { M.resetToPreset(selected(), state.lib); markDirty(); refresh(); },

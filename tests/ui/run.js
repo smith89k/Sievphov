@@ -304,8 +304,31 @@ app.whenReady().then(async () => {
     check(warned.includes('Fix these 2 files before printing') && warned.includes('Invoice-2026-10.pdf'), 'a file moved away after it was added is caught too');
     await closeAsk();
     check((await rowText(2)).includes("Can't read"), 'the moved file says Can\'t read in the list');
-    fs.renameSync(files[2] + '.away', files[2]);
-    fs.writeFileSync(files[4], pdf([[595, 842]]));   // both fixed: pressing Print again is enough
+    // Replace file: pick the moved file where it is now (global.sievphovTestPick stands in for the Windows file box)
+    const toastText = () => js(`document.querySelector('.toast')?.textContent || ''`);
+    const metaOf = i => js(`[...document.querySelectorAll('.row')[${i}].querySelectorAll('.meta')].map(e => e.innerText).join('|')`);
+    const moved = path.join(docs, 'Invoice-2026-10 (moved).pdf');
+    fs.renameSync(files[2] + '.away', moved);
+    const before = await metaOf(2);
+    await pickRow(2); await sleep(150);
+    global.sievphovTestPick = files[0];
+    wc.send('menu', 'replaceFile'); await sleep(400);
+    check((await toastText()).includes('already in the list') && (await rowText(2)).includes("Can't read"), 'Replace file with a file already in the list: refused, the row stays');
+    global.sievphovTestPick = file('Also-broken.pdf', Buffer.from('not a pdf either'));
+    wc.send('menu', 'replaceFile'); await sleep(400);
+    check((await toastText()).includes('could not be used') && (await rowText(2)).includes("Can't read"), 'Replace file with a broken file: refused, the row stays');
+    global.sievphovTestPick = null;
+    wc.send('menu', 'replaceFile'); await sleep(300);
+    check((await rowText(2)).includes("Can't read"), 'Replace file, Cancel: nothing changes');
+    global.sievphovTestPick = moved;   // double-click a file that cannot be read = Replace file
+    await js(`document.querySelectorAll('.row')[2].dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`);
+    await waitFor(async () => !(await rowText(2)).includes("Can't read"), 'the replaced row');
+    check((await rowText(2)).includes('Invoice-2026-10 (moved).pdf') && (await rowText(2)).includes('3'), 'double-click a file that cannot be read: Replace file reads the new one (3 pages)');
+    check(await metaOf(2) === before, 'the replaced file keeps its preset, printer, tray and sides');
+    check(await js(`document.querySelectorAll('.row')[2].querySelector('.tick').checked && document.querySelectorAll('.row').length === 5`), 'it is ticked again and keeps its place in the list');
+    check((await toastText()).includes('was replaced with'), 'a note says which file replaced which');
+    await shot('07d-replace-file');
+    fs.writeFileSync(files[4], pdf([[595, 842]]));   // the other one repaired where it is: pressing Print again is enough
     warned = await askText();
     check(warned.includes('Print 3 files, 3 times?'), 'fixed files are read again and print with the list');
     check(!(await rowText(4)).includes("Can't read"), 'the fixed file no longer says Can\'t read');

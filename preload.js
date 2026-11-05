@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('sievphov', {
   storeWrite: (name, value) => ipcRenderer.invoke('store-write', name, value),
   addFilesDialog: () => ipcRenderer.invoke('add-files-dialog'),
   addFolderDialog: () => ipcRenderer.invoke('add-folder-dialog'),
+  replaceFileDialog: oldPath => ipcRenderer.invoke('replace-file-dialog', oldPath),   // → a PDF path or null
   expandPaths: (paths, sub) => ipcRenderer.invoke('expand-paths', paths, sub),
   fileExists: p => ipcRenderer.invoke('file-exists', p),
   samplePdf: wide => ipcRenderer.invoke('sample-pdf', !!wide),   // → { path, pageCount, pageSizes }
