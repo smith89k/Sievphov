@@ -118,4 +118,4 @@ For code changes, open a pull request and run `pnpm test` first.
 Sievphov is free and open source under the [MIT License](LICENSE). © 2026 Sunnguon Taing.
 
 The bundled fonts (IBM Plex Sans, IBM Plex Mono, Noto Sans Khmer) are under the SIL Open Font License 1.1,
-and PDF reading uses PDFium (BSD-3-Clause / Apache-2.0).
+and PDF reading uses PDFium (BSD-3-Clause / Apache-2.0). See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
