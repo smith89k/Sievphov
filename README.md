@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="art/logo.svg" alt="Sievphov logo" width="112" height="112">
+<img src="art/Sievphov.png" alt="Sievphov logo" width="112" height="112">
 
 # Sievphov (សៀវភៅ)
 
