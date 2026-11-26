@@ -23,10 +23,6 @@ Made for printing books, including Khmer books and sastra.
   <img src="art/banner-light.png" alt="Sievphov: a print queue where every PDF has its own printer, tray and booklet settings, and a total sheet count." width="100%">
 </picture>
 
-<p align="center">
-  <img src="docs/images/screenshot.png" alt="Sievphov main window: a list of PDF files, each with its own preset, printer, tray and sides, and the settings panel on the right" width="900">
-</p>
-
 *Sievphov* (សៀវភៅ) means "book" in Khmer.
 
 ## Features
@@ -41,6 +37,10 @@ Made for printing books, including Khmer books and sastra.
 - **Safe printing** — files are checked again before printing; a report at the end can be saved for Excel.
 - **Private** — works offline; your files never leave your computer. Light and dark theme.
 - **Always up to date** — the Microsoft Store version downloads and installs new versions for you.
+
+<p align="center">
+  <img src="docs/images/screenshot.png" alt="Sievphov main window: a list of PDF files, each with its own preset, printer, tray and sides, and the settings panel on the right" width="900">
+</p>
 
 ## Install
 
