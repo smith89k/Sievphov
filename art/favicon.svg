@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Sievphov logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1D1631"/><stop offset="1" stop-color="#0A0713"/>
+    </linearGradient>
+    <linearGradient id="pg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#DCD4EE"/>
+    </linearGradient>
+    <linearGradient id="pr" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9A7BE8"/><stop offset="1" stop-color="#5B3FA0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="3" y="3" width="506" height="506" rx="109" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="6"/>
+
+<g transform="translate(256 262) scale(1.18) translate(-256 -256)">
+
+  <path d="M256 150 C222 124 176 118 134 122 L134 252 C176 248 222 254 256 280 Z" fill="url(#pg)"/>
+  <path d="M256 150 C290 124 336 118 378 122 L378 252 C336 248 290 254 256 280 Z" fill="url(#pg)" opacity=".86"/>
+  <rect x="248" y="150" width="16" height="130" rx="8" fill="#B9ADDC"/>
+  <rect x="118" y="292" width="276" height="104" rx="26" fill="url(#pr)"/>
+  <rect x="156" y="268" width="200" height="40" rx="12" fill="#CFC4EC"/>
+  <rect x="156" y="356" width="200" height="60" rx="14" fill="#F2EEFB"/>
+  <rect x="180" y="376" width="152" height="10" rx="5" fill="#B9ADDC"/>
+  <rect x="180" y="396" width="104" height="10" rx="5" fill="#B9ADDC"/>
+  <circle cx="352" cy="330" r="12" fill="#E7DFFA"/>
+
+</g>
+</svg>

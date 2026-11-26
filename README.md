@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="art/Sievphov.png" alt="Sievphov logo" width="120">
+<img src="art/logo.svg" alt="Sievphov logo" width="112" height="112">
 
 # Sievphov (សៀវភៅ)
 
@@ -17,6 +17,11 @@ Made for printing books, including Khmer books and sastra.
 [![License: MIT](https://img.shields.io/badge/license-MIT-5b3fa0)](LICENSE)
 
 </div>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="art/banner-dark.png">
+  <img src="art/banner-light.png" alt="Sievphov: a print queue where every PDF has its own printer, tray and booklet settings, and a total sheet count." width="100%">
+</picture>
 
 <p align="center">
   <img src="docs/images/screenshot.png" alt="Sievphov main window: a list of PDF files, each with its own preset, printer, tray and sides, and the settings panel on the right" width="900">
